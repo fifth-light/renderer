@@ -1,0 +1,10 @@
+use std::sync::Arc;
+
+use super::texture::TextureAsset;
+
+#[derive(Debug, Clone)]
+pub struct MaterialAsset {
+    pub name: Option<String>,
+    pub diffuse_color: Option<[f32; 4]>,
+    pub diffuse_texture: Option<Arc<TextureAsset>>,
+}

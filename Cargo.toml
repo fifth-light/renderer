@@ -1,0 +1,20 @@
+[package]
+name = "renderer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bytemuck = { version = "1", features = ["derive"] }
+env_logger = "0.11"
+glam = "0.29"
+gltf = { version = "1", features = ["import"] }
+image = "0.25"
+log = "0.4"
+pollster = "0.3"
+tobj = "4"
+wgpu = "22.1"
+winit = "0.30"
+egui = { git = "https://github.com/emilk/egui.git" }
+egui-winit = { git = "https://github.com/emilk/egui.git" }
+egui-wgpu = { git = "https://github.com/emilk/egui.git" }
+rfd = "0.14"

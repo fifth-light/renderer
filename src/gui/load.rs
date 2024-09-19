@@ -1,0 +1,37 @@
+use std::{sync::mpsc::Sender, thread};
+
+use egui::{Align2, Context, Window};
+use rfd::FileDialog;
+
+use super::GuiAction;
+
+pub fn model_load(ctx: &Context, gui_actions_tx: &mut Sender<GuiAction>) {
+    Window::new("Load Model")
+        .resizable([false, false])
+        .pivot(Align2::RIGHT_TOP)
+        .show(ctx, |ui| {
+            if ui.button("Load OBJ").clicked() {
+                let tx = gui_actions_tx.clone();
+                thread::spawn(move || {
+                    if let Some(file) = FileDialog::new()
+                        .add_filter("Wavefront OBJ file", &["obj"])
+                        .pick_file()
+                    {
+                        let _ = tx.send(GuiAction::LoadObj(file));
+                    }
+                });
+            }
+            if ui.button("Load GLTF").clicked() {
+                let tx = gui_actions_tx.clone();
+                thread::spawn(move || {
+                    if let Some(file) = FileDialog::new()
+                        .add_filter("GLTF json file", &["gltf"])
+                        .add_filter("GLTF binary file", &["glb"])
+                        .pick_file()
+                    {
+                        let _ = tx.send(GuiAction::LoadGltf(file));
+                    }
+                });
+            }
+        });
+}
