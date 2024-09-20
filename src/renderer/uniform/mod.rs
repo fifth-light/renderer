@@ -1,3 +1,3 @@
 pub mod camera;
-pub mod joint;
+pub mod skin;
 pub mod transform;

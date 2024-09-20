@@ -6,19 +6,23 @@ use std::{
 use camera::CameraNode;
 use crosshair::CrosshairNode;
 use group::GroupNode;
-use joint::JointGroupNode;
+use joint::JointNode;
 use primitive::PrimitiveNode;
+use skin::SkinNode;
 use transform::TransformNode;
 use wgpu::{Device, Queue};
 
-use super::{context::Context, OngoingRenderState, RendererState};
+use super::{
+    context::{GlobalContext, LocalContext},
+    OngoingRenderState, RendererState,
+};
 
 pub mod camera;
 pub mod crosshair;
 pub mod group;
 pub mod joint;
 pub mod primitive;
-pub mod skin_group;
+pub mod skin;
 pub mod transform;
 
 static ID_COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -33,8 +37,12 @@ pub fn new_node_id() -> usize {
 // Draw: do actual drawing
 pub trait RenderNode {
     fn id(&self) -> usize;
-    fn update(&mut self, _context: &Context, _invalid: bool) -> bool {
-        false
+    fn update(
+        &mut self,
+        _local_context: &LocalContext,
+        _global_context: &mut GlobalContext,
+        _invalid: bool,
+    ) {
     }
     fn prepare(&mut self, _device: &Device, _queue: &Queue, _renderer_state: &mut RendererState) {}
     fn draw<'a>(
@@ -50,7 +58,8 @@ pub enum RenderNodeItem {
     Primitive(Box<PrimitiveNode>),
     Transform(Box<TransformNode>),
     Crosshair(Box<CrosshairNode>),
-    Joint(Box<JointGroupNode>),
+    Joint(Box<JointNode>),
+    Skin(Box<SkinNode>),
     Camera(Box<CameraNode>),
 }
 
@@ -63,6 +72,7 @@ impl Debug for RenderNodeItem {
             RenderNodeItem::Transform(transform) => transform.fmt(f),
             RenderNodeItem::Crosshair(crosshair) => crosshair.fmt(f),
             RenderNodeItem::Joint(joint) => joint.fmt(f),
+            RenderNodeItem::Skin(skin) => skin.fmt(f),
             RenderNodeItem::Camera(camera) => camera.fmt(f),
         }
     }
@@ -76,18 +86,29 @@ impl RenderNode for RenderNodeItem {
             RenderNodeItem::Transform(transform) => transform.id(),
             RenderNodeItem::Crosshair(crosshair) => crosshair.id(),
             RenderNodeItem::Joint(joint) => joint.id(),
+            RenderNodeItem::Skin(skin) => skin.id(),
             RenderNodeItem::Camera(camera) => camera.id(),
         }
     }
 
-    fn update(&mut self, context: &Context, invalid: bool) -> bool {
+    fn update(
+        &mut self,
+        local_context: &LocalContext,
+        global_context: &mut GlobalContext,
+        invalid: bool,
+    ) {
         match self {
-            RenderNodeItem::Group(group) => group.update(context, invalid),
-            RenderNodeItem::Primitive(mesh) => mesh.update(context, invalid),
-            RenderNodeItem::Transform(transform) => transform.update(context, invalid),
-            RenderNodeItem::Crosshair(crosshair) => crosshair.update(context, invalid),
-            RenderNodeItem::Joint(joint) => joint.update(context, invalid),
-            RenderNodeItem::Camera(camera) => camera.update(context, invalid),
+            RenderNodeItem::Group(group) => group.update(local_context, global_context, invalid),
+            RenderNodeItem::Primitive(mesh) => mesh.update(local_context, global_context, invalid),
+            RenderNodeItem::Transform(transform) => {
+                transform.update(local_context, global_context, invalid)
+            }
+            RenderNodeItem::Crosshair(crosshair) => {
+                crosshair.update(local_context, global_context, invalid)
+            }
+            RenderNodeItem::Joint(joint) => joint.update(local_context, global_context, invalid),
+            RenderNodeItem::Skin(skin) => skin.update(local_context, global_context, invalid),
+            RenderNodeItem::Camera(camera) => camera.update(local_context, global_context, invalid),
         }
     }
 
@@ -102,6 +123,7 @@ impl RenderNode for RenderNodeItem {
                 crosshair.prepare(device, queue, renderer_state)
             }
             RenderNodeItem::Joint(joint) => joint.prepare(device, queue, renderer_state),
+            RenderNodeItem::Skin(skin) => skin.prepare(device, queue, renderer_state),
             RenderNodeItem::Camera(camera) => camera.prepare(device, queue, renderer_state),
         }
     }
@@ -117,6 +139,7 @@ impl RenderNode for RenderNodeItem {
             RenderNodeItem::Transform(transform) => transform.draw(renderer_state, ongoing_state),
             RenderNodeItem::Crosshair(crosshair) => crosshair.draw(renderer_state, ongoing_state),
             RenderNodeItem::Joint(joint) => joint.draw(renderer_state, ongoing_state),
+            RenderNodeItem::Skin(skin) => skin.draw(renderer_state, ongoing_state),
             RenderNodeItem::Camera(camera) => camera.draw(renderer_state, ongoing_state),
         }
     }

@@ -5,8 +5,9 @@ use wgpu::{BindGroup, BindGroupDescriptor, BindGroupEntry, Device, Queue};
 use crate::{
     asset::node::{DecomposedTransform, NodeTransform},
     renderer::{
-        context::Context, uniform::transform::InstanceUniformBuffer, OngoingRenderState,
-        RendererState,
+        context::{GlobalContext, LocalContext},
+        uniform::transform::InstanceUniformBuffer,
+        OngoingRenderState, RendererState,
     },
 };
 
@@ -26,7 +27,7 @@ pub struct TransformNode {
     transform: DecomposedTransform,
     // Set invalid to true when the result context changed
     invalid: bool,
-    context: Option<Context>,
+    context: Option<LocalContext>,
     buffer: Option<TransformBuffer>,
     pub node: RenderNodeItem,
 }
@@ -76,7 +77,7 @@ impl TransformNode {
         self.transform = new_transform;
     }
 
-    pub fn context(&self) -> Option<&Context> {
+    pub fn context(&self) -> Option<&LocalContext> {
         self.context.as_ref()
     }
 }
@@ -86,18 +87,22 @@ impl RenderNode for TransformNode {
         self.id
     }
 
-    fn update(&mut self, context: &Context, invalid: bool) -> bool {
+    fn update(
+        &mut self,
+        local_context: &LocalContext,
+        global_context: &mut GlobalContext,
+        invalid: bool,
+    ) {
         if self.updated || invalid || self.context.is_none() {
             // update the context and mark the node to be updated when prepare
             self.invalid = true;
             self.updated = false;
 
-            let context = context.add_transform(&self.matrix());
-            self.node.update(&context, true);
+            let context = local_context.add_transform(&self.matrix());
+            self.node.update(&context, global_context, true);
             self.context = Some(context);
-            true
-        } else if let Some(context) = &self.context {
-            self.node.update(context, invalid)
+        } else if let Some(local_context) = &self.context {
+            self.node.update(local_context, global_context, invalid);
         } else {
             // No update, no invalid, bad state
             warn!(
@@ -105,10 +110,9 @@ impl RenderNode for TransformNode {
                 self.id
             );
             self.invalid = true;
-            let context = context.add_transform(&self.matrix());
-            self.node.update(&context, true);
+            let context = local_context.add_transform(&self.matrix());
+            self.node.update(&context, global_context, true);
             self.context = Some(context);
-            true
         }
     }
 

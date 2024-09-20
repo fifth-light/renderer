@@ -30,7 +30,7 @@ use crate::asset::{
     node::{DecomposedTransform, MatrixNodeTransform, NodeAsset, NodeAssetId, NodeTransform},
     primitive::{PrimitiveAsset, PrimitiveAssetMode, PrimitiveSkin, TexCoords, VertexColor},
     scene::SceneAsset,
-    skin::SkinAsset,
+    skin::{SkinAsset, SkinAssetId},
     texture::{
         SamplerAsset, TextureAsset, TextureAssetFormat, TextureAssetId, TextureMagFilter,
         TextureMinFilter, TextureMipmapFilter, TextureWrappingMode,
@@ -63,6 +63,14 @@ impl From<(GltfIdentifier, usize)> for NodeAssetId {
     fn from(value: (GltfIdentifier, usize)) -> Self {
         match value {
             (GltfIdentifier::Path(path), index) => NodeAssetId::PathIndex(path, index),
+        }
+    }
+}
+
+impl From<(GltfIdentifier, usize)> for SkinAssetId {
+    fn from(value: (GltfIdentifier, usize)) -> Self {
+        match value {
+            (GltfIdentifier::Path(path), index) => SkinAssetId::PathIndex(path, index),
         }
     }
 }
@@ -312,6 +320,7 @@ struct GltfDocumentLoader<'a> {
     texture_cache: HashMap<usize, Arc<TextureAsset>>,
     animated_nodes: BTreeSet<usize>,
     joint_nodes: BTreeSet<usize>,
+    skin_cache: HashMap<usize, Arc<SkinAsset>>,
 }
 
 impl<'a> GltfDocumentLoader<'a> {
@@ -321,6 +330,7 @@ impl<'a> GltfDocumentLoader<'a> {
             texture_cache: HashMap::new(),
             animated_nodes: BTreeSet::new(),
             joint_nodes: BTreeSet::new(),
+            skin_cache: HashMap::new(),
         }
     }
 
@@ -509,25 +519,15 @@ impl<'a> GltfDocumentLoader<'a> {
         }
     }
 
-    fn load_skin(&mut self, skin: Skin) -> SkinAsset {
-        let joint_ids: Vec<usize> = skin.joints().map(|joint| joint.index()).collect();
-        let mut root_nodes: BTreeSet<usize> = joint_ids.iter().cloned().collect();
-        let joint_ids = joint_ids
-            .into_iter()
-            .map(|index| (self.data.id.clone(), index).into())
-            .collect();
-        for node in skin.joints() {
-            node.children().for_each(|node| {
-                root_nodes.remove(&node.index());
-            });
+    fn load_skin(&mut self, skin: &Skin) -> Arc<SkinAsset> {
+        if let Some(skin) = self.skin_cache.get(&skin.index()) {
+            return skin.clone();
         }
-        assert_eq!(root_nodes.len(), 1);
-        let root_joint_id = root_nodes.into_iter().next().unwrap();
-        let root_joint = skin
+
+        let joint_ids: Vec<NodeAssetId> = skin
             .joints()
-            .find(|node| node.index() == root_joint_id)
-            .unwrap();
-        let root_joint = self.load_node(root_joint);
+            .map(|joint| (self.data.id.clone(), joint.index()).into())
+            .collect();
 
         let inverse_bind_matrices = skin
             .inverse_bind_matrices()
@@ -536,11 +536,13 @@ impl<'a> GltfDocumentLoader<'a> {
                 chunk_mat4(data)
             })
             .unwrap_or_default();
-        SkinAsset {
+        let skin_asset = Arc::new(SkinAsset {
+            id: (self.data.id.clone(), skin.index()).into(),
             joint_ids,
-            root_joint: Box::new(root_joint),
             inverse_bind_matrices,
-        }
+        });
+        self.skin_cache.insert(skin.index(), skin_asset.clone());
+        skin_asset
     }
 
     fn load_node(&mut self, node: Node) -> NodeAsset {
@@ -560,7 +562,7 @@ impl<'a> GltfDocumentLoader<'a> {
             }),
         };
         let mesh = node.mesh().map(|mesh| self.load_mesh(mesh));
-        let skin = node.skin().map(|skin| self.load_skin(skin));
+        let skin = node.skin().map(|skin| self.load_skin(&skin));
         let camera = node.camera().map(load_camera);
         let children = node.children().map(|child| self.load_node(child)).collect();
         let has_animation = self.animated_nodes.contains(&node.index());
@@ -578,38 +580,52 @@ impl<'a> GltfDocumentLoader<'a> {
     }
 
     fn load_scene(&mut self, scene: Scene) -> SceneAsset {
-        let nodes: Vec<_> = scene
+        let (mut nodes, mut skinned_nodes): (Vec<NodeAsset>, Vec<NodeAsset>) = scene
             .nodes()
-            .filter(|node| !self.joint_nodes.contains(&node.index()))
-            .collect();
-        let (mut nodes, mut skinned_nodes) = nodes
-            .into_iter()
             .map(|node| self.load_node(node))
             .partition(|node| node.skin.is_none());
 
-        fn take_out_skinned_nodes(node: &mut NodeAsset, target: &mut Vec<NodeAsset>) {
+        fn move_skinned_nodes(node: &mut NodeAsset, skinned_nodes: &mut Vec<NodeAsset>) {
             let mut i = 0;
             while i < node.children.len() {
                 let child = &mut node.children[i];
                 if child.skin.is_some() {
                     let child = node.children.remove(i);
-                    target.push(child);
+                    skinned_nodes.push(child);
                 } else {
                     for child in &mut child.children {
-                        take_out_skinned_nodes(child, target);
+                        move_skinned_nodes(child, skinned_nodes);
                     }
                     i += 1;
                 }
             }
         }
         for node in &mut nodes {
-            take_out_skinned_nodes(node, &mut skinned_nodes);
+            move_skinned_nodes(node, &mut skinned_nodes);
         }
+
+        let mut joint_nodes = HashMap::new();
+        for node in &skinned_nodes {
+            let skin = node.skin.clone().unwrap();
+            for joint in &skin.joint_ids {
+                let skins: &mut BTreeSet<SkinAssetId> =
+                    joint_nodes.entry(joint.clone()).or_default();
+                skins.insert(skin.id.clone());
+            }
+        }
+
+        let skins = self
+            .skin_cache
+            .values()
+            .map(|asset| (asset.id.clone(), asset.clone()))
+            .collect();
 
         SceneAsset {
             name: scene.name().map(str::to_string),
             nodes,
+            joint_nodes,
             skinned_nodes,
+            skins,
         }
     }
 

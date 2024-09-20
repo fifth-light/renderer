@@ -1,6 +1,11 @@
-use std::{cmp::Ordering, collections::HashMap, iter, sync::Arc, time::Duration};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeSet, HashMap},
+    iter,
+    sync::Arc,
+    time::Duration,
+};
 
-use glam::Mat4;
 use log::warn;
 use wgpu::{BindGroup, Device, PrimitiveTopology, Queue};
 
@@ -12,7 +17,7 @@ use crate::{
         node::{NodeAsset, NodeAssetId},
         primitive::{PrimitiveAsset, PrimitiveAssetMode},
         scene::SceneAsset,
-        skin::SkinAsset,
+        skin::{SkinAsset, SkinAssetId},
         texture::{TextureAsset, TextureAssetId},
     },
     renderer::{
@@ -34,7 +39,13 @@ use crate::renderer::node::{
 use super::{
     animation::{AnimationGroupNode, AnimationNode, AnimationState},
     camera::CameraProjection,
-    node::{camera::CameraNode, joint::JointGroupNode, new_node_id, RenderNode},
+    node::{
+        camera::CameraNode,
+        joint::JointNode,
+        new_node_id,
+        skin::{new_skin_id, SkinData, SkinNode},
+        RenderNode,
+    },
     vertex::{ColorSkinVertex, TextureSkinVertex},
 };
 
@@ -42,6 +53,7 @@ pub struct RendererAssetLoader<'a> {
     state: &'a RendererState,
     texture_cache: HashMap<TextureAssetId, Arc<BindGroup>>,
     animate_nodes: HashMap<NodeAssetId, usize>,
+    skins: HashMap<SkinAssetId, Arc<SkinData>>,
     pipelines: &'a mut Pipelines,
 }
 
@@ -51,6 +63,7 @@ impl<'a> RendererAssetLoader<'a> {
             state,
             texture_cache: HashMap::new(),
             animate_nodes: HashMap::new(),
+            skins: HashMap::new(),
             pipelines,
         }
     }
@@ -236,30 +249,12 @@ impl<'a> RendererAssetLoader<'a> {
         RenderNodeItem::Group(Box::new(target_node))
     }
 
-    pub fn load_skin(
-        &mut self,
-        device: &Device,
-        queue: &Queue,
-        skin: SkinAsset,
-    ) -> (RenderNodeItem, Vec<usize>, Vec<Mat4>) {
-        let joint_asset_ids = skin.joint_ids;
-        let mut joint_node_ids = vec![None; joint_asset_ids.len()];
-        let joint_root = self.load_node_with_callback(
-            device,
-            queue,
-            *skin.root_joint,
-            &mut |asset_id, node_id| {
-                if let Some(index) = joint_asset_ids.iter().position(|id| id == asset_id) {
-                    joint_node_ids[index] = Some(node_id);
-                }
-            },
-        );
-
-        let joint_node_ids = joint_node_ids
-            .into_iter()
-            .map(|id| id.expect("Missing joint node id"))
-            .collect();
-        (joint_root, joint_node_ids, skin.inverse_bind_matrices)
+    pub fn load_skin(&self, skin: &SkinAsset) -> Arc<SkinData> {
+        let data = SkinData {
+            id: new_skin_id(),
+            inverse_bind_matrix: skin.inverse_bind_matrices.clone(),
+        };
+        Arc::new(data)
     }
 
     pub fn load_camera(camera: CameraAsset) -> RenderNodeItem {
@@ -280,16 +275,13 @@ impl<'a> RendererAssetLoader<'a> {
         RenderNodeItem::Camera(Box::new(CameraNode::new(projection, camera.label)))
     }
 
-    pub fn load_node(&mut self, device: &Device, queue: &Queue, node: NodeAsset) -> RenderNodeItem {
-        self.load_node_with_callback(device, queue, node, &mut |_, _| {})
-    }
-
-    pub fn load_node_with_callback(
+    pub fn load_node(
         &mut self,
         device: &Device,
         queue: &Queue,
         node: NodeAsset,
-        on_transform_applied: &mut impl FnMut(&NodeAssetId, usize),
+        skins: &HashMap<SkinAssetId, Arc<SkinAsset>>,
+        joint_ids: &HashMap<NodeAssetId, BTreeSet<SkinAssetId>>,
     ) -> RenderNodeItem {
         let mut target_node = GroupNode::new(node.name);
 
@@ -304,53 +296,42 @@ impl<'a> RendererAssetLoader<'a> {
         }
 
         for child in node.children {
-            let child = self.load_node_with_callback(device, queue, child, on_transform_applied);
+            let child = self.load_node(device, queue, child, skins, joint_ids);
             target_node.push(child);
         }
 
-        match (node.skin, node.has_animation, node.transform) {
-            (Some(skin), true, _) => {
-                let (joint_root, joint_ids, inverse_bind_matrices) =
-                    self.load_skin(device, queue, skin);
-                let target_node = RenderNodeItem::Group(Box::new(target_node));
+        let mut target_node = RenderNodeItem::Group(Box::new(target_node));
 
-                let transform = TransformNode::new(target_node);
-                on_transform_applied(&node.id, transform.id());
-                self.animate_nodes.insert(node.id, transform.id());
-                let target_node = RenderNodeItem::Transform(Box::new(transform));
+        if let Some(joint_skins) = joint_ids.get(&node.id) {
+            let skin_indexes = joint_skins
+                .iter()
+                .map(|skin_id| {
+                    let skin_data = self.skins.get(skin_id).expect("Skin not found");
+                    let skin = skins.get(skin_id).expect("Skin not found");
+                    let joint_index = skin
+                        .joint_ids
+                        .iter()
+                        .position(|id| *id == node.id)
+                        .expect("Joint not found");
+                    (skin_data.id, joint_index)
+                })
+                .collect();
+            let joint_node = JointNode::new(skin_indexes, target_node);
+            target_node = RenderNodeItem::Joint(Box::new(joint_node));
+        }
 
-                let joint =
-                    JointGroupNode::new(target_node, joint_ids, joint_root, inverse_bind_matrices);
-                RenderNodeItem::Joint(Box::new(joint))
-            }
-            (Some(skin), false, _) => {
-                let (joint_root, joint_ids, inverse_bind_matrices) =
-                    self.load_skin(device, queue, skin);
-                on_transform_applied(&node.id, target_node.id());
-                let target_node = RenderNodeItem::Group(Box::new(target_node));
-
-                let joint =
-                    JointGroupNode::new(target_node, joint_ids, joint_root, inverse_bind_matrices);
-                RenderNodeItem::Joint(Box::new(joint))
-            }
-            (None, true, transform) => {
-                let target_node = RenderNodeItem::Group(Box::new(target_node));
+        match (node.has_animation, node.transform) {
+            (true, transform) => {
                 let transform =
                     TransformNode::from_transform(transform.unwrap_or_default(), target_node);
-                on_transform_applied(&node.id, transform.id());
                 self.animate_nodes.insert(node.id, transform.id());
                 RenderNodeItem::Transform(Box::new(transform))
             }
-            (None, false, Some(transform)) => {
-                let target_node = RenderNodeItem::Group(Box::new(target_node));
+            (false, Some(transform)) => {
                 let transform = TransformNode::from_transform(transform, target_node);
-                on_transform_applied(&node.id, transform.id());
                 RenderNodeItem::Transform(Box::new(transform))
             }
-            (None, false, None) => {
-                on_transform_applied(&node.id, target_node.id());
-                RenderNodeItem::Group(Box::new(target_node))
-            }
+            (false, None) => target_node,
         }
     }
 
@@ -360,10 +341,20 @@ impl<'a> RendererAssetLoader<'a> {
         queue: &Queue,
         scene: SceneAsset,
     ) -> RenderNodeItem {
+        for (id, skin) in &scene.skins {
+            self.skins.insert(id.clone(), self.load_skin(skin));
+        }
         let mut target_node = GroupNode::new(scene.name);
         for node in scene.nodes {
-            let node = self.load_node(device, queue, node);
+            let node = self.load_node(device, queue, node, &scene.skins, &scene.joint_nodes);
             target_node.push(node);
+        }
+        for node in scene.skinned_nodes {
+            let skin = node.skin.clone().unwrap();
+            let node = self.load_node(device, queue, node, &scene.skins, &scene.joint_nodes);
+            let skin = self.skins.get(&skin.id).unwrap();
+            let skin_node = SkinNode::new(skin.clone(), node);
+            target_node.push(RenderNodeItem::Skin(Box::new(skin_node)));
         }
         RenderNodeItem::Group(Box::new(target_node))
     }

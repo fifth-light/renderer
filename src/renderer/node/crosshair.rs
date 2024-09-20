@@ -2,7 +2,10 @@ use wgpu::{Device, Queue};
 
 use crate::{
     asset::primitive::{PrimitiveAsset, PrimitiveAssetMode},
-    renderer::{context::Context, loader::RendererAssetLoader},
+    renderer::{
+        context::{GlobalContext, LocalContext},
+        loader::RendererAssetLoader,
+    },
 };
 
 use super::{new_node_id, primitive::PrimitiveNode, OngoingRenderState, RenderNode, RendererState};
@@ -64,8 +67,13 @@ impl RenderNode for CrosshairNode {
         self.id
     }
 
-    fn update(&mut self, context: &Context, invalid: bool) -> bool {
-        self.node.update(context, invalid)
+    fn update(
+        &mut self,
+        local_context: &LocalContext,
+        global_context: &mut GlobalContext,
+        invalid: bool,
+    ) {
+        self.node.update(local_context, global_context, invalid);
     }
 
     fn prepare(&mut self, device: &Device, queue: &Queue, renderer_state: &mut RendererState) {

@@ -1,21 +1,24 @@
-use glam::Mat4;
+use std::collections::BTreeMap;
 
-pub static DEFAULT_CONTEXT: Context = Context {
+use glam::Mat4;
+use log::warn;
+
+pub static DEFAULT_LOCAL_CONTEXT: LocalContext = LocalContext {
     transform: Mat4::IDENTITY,
 };
 
 #[derive(Debug, Clone)]
-pub struct Context {
+pub struct LocalContext {
     transform: Mat4,
 }
 
-impl Default for Context {
+impl Default for LocalContext {
     fn default() -> Self {
-        DEFAULT_CONTEXT.clone()
+        DEFAULT_LOCAL_CONTEXT.clone()
     }
 }
 
-impl Context {
+impl LocalContext {
     pub fn transform(&self) -> &Mat4 {
         &self.transform
     }
@@ -24,5 +27,26 @@ impl Context {
         Self {
             transform: self.transform * (*transform),
         }
+    }
+}
+
+#[derive(Default)]
+pub struct GlobalContext {
+    updated_joints: BTreeMap<usize, BTreeMap<usize, Mat4>>,
+}
+
+impl GlobalContext {
+    pub fn update_joint(&mut self, skin: usize, joint_index: usize, matrix: Mat4) {
+        let skin_map = self.updated_joints.entry(skin).or_default();
+        if skin_map.insert(joint_index, matrix).is_some() {
+            warn!(
+                "Joint #{} of skin #{} is already set in global context",
+                joint_index, skin
+            );
+        }
+    }
+
+    pub fn updated_joints(&self) -> &BTreeMap<usize, BTreeMap<usize, Mat4>> {
+        &self.updated_joints
     }
 }

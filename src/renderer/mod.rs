@@ -2,7 +2,7 @@ use std::{collections::HashMap, iter, time::Instant};
 
 use animation::{AnimationGroupNode, AnimationState};
 use camera::Camera;
-use context::DEFAULT_CONTEXT;
+use context::{GlobalContext, DEFAULT_LOCAL_CONTEXT};
 use depth_texture::DepthTexture;
 use glam::Mat4;
 use log::warn;
@@ -350,7 +350,8 @@ impl Renderer {
         for animate_group in &mut self.animation_groups.values_mut() {
             animate_group.update(&mut self.root_node, time);
         }
-        self.root_node.update(&DEFAULT_CONTEXT, false);
+        self.root_node
+            .update(&DEFAULT_LOCAL_CONTEXT, &mut GlobalContext::default(), false);
         self.state.prepare(queue);
         self.root_node.prepare(device, queue, &mut self.state);
     }

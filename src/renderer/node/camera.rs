@@ -3,7 +3,7 @@ use wgpu::{Device, Queue};
 
 use crate::renderer::{
     camera::{Camera, CameraProjection, CameraView},
-    context::Context,
+    context::{GlobalContext, LocalContext},
     RendererState,
 };
 
@@ -24,9 +24,15 @@ impl RenderNode for CameraNode {
         self.id
     }
 
-    fn update(&mut self, context: &Context, invalid: bool) -> bool {
+    fn update(
+        &mut self,
+        local_context: &LocalContext,
+        _global_context: &mut GlobalContext,
+        invalid: bool,
+    ) {
         if invalid || self.view.is_none() {
-            let (_, rotation, translation) = context.transform().to_scale_rotation_translation();
+            let (_, rotation, translation) =
+                local_context.transform().to_scale_rotation_translation();
             let (_, angle_y, angle_z) = rotation.to_euler(EulerRot::XYZ);
             let view = Some(CameraView {
                 eye: translation,
@@ -37,7 +43,6 @@ impl RenderNode for CameraNode {
 
             self.updated = true;
         }
-        false
     }
 
     fn prepare(&mut self, _device: &Device, _queue: &Queue, renderer_state: &mut RendererState) {

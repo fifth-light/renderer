@@ -1,6 +1,6 @@
 use std::sync::mpsc::Sender;
 
-use egui::{Align2, CollapsingHeader, Context, Id, ScrollArea, Ui, Window};
+use egui::{Align2, CollapsingHeader, Context, ScrollArea, Ui, Window};
 use glam::EulerRot;
 
 use crate::{
@@ -11,8 +11,9 @@ use crate::{
             camera::CameraNode,
             crosshair::CrosshairNode,
             group::GroupNode,
-            joint::JointGroupNode,
+            joint::JointNode,
             primitive::{PrimitiveNode, PrimitiveNodeContent},
+            skin::SkinNode,
             transform::TransformNode,
             RenderNode, RenderNodeItem,
         },
@@ -20,7 +21,7 @@ use crate::{
     },
 };
 
-use super::{context::context_label, matrix::matrix_label, GuiAction};
+use super::{context::context_label, GuiAction};
 
 pub fn primitive_node(ui: &mut Ui, node: &PrimitiveNode) {
     CollapsingHeader::new(format!("Primitive #{}", node.id()))
@@ -112,47 +113,20 @@ pub fn crosshair_node(ui: &mut Ui, node: &CrosshairNode) {
 
 pub fn joint_node(
     ui: &mut Ui,
-    node: &JointGroupNode,
+    node: &JointNode,
     renderer: &Renderer,
     gui_actions_tx: &mut Sender<GuiAction>,
 ) {
     CollapsingHeader::new(format!("Joint #{}", node.id()))
         .id_salt(node.id())
         .show(ui, |ui| {
-            ui.label(format!(
-                "joint ids: [{}]",
-                node.joint_ids()
-                    .iter()
-                    .map(usize::to_string)
-                    .reduce(|a, b| { a + ", " + &b })
-                    .unwrap_or(String::new())
-            ));
-            let joint_id = Id::new(node.id()).with("Joint Matrix");
-            CollapsingHeader::new("joint matrixs: ")
-                .id_salt(joint_id)
-                .show(ui, |ui| {
-                    for (index, matrix) in node.joint_matrixs().iter().enumerate() {
-                        CollapsingHeader::new(format!("#{}", index))
-                            .id_salt(joint_id.with(index))
-                            .show(ui, |ui| {
-                                matrix_label(
-                                    ui,
-                                    joint_id.with(index).with("Matrix Content"),
-                                    matrix,
-                                );
-                            });
-                    }
-                });
-            CollapsingHeader::new("items: ")
-                .id_salt(Id::new(node.id()).with(node.node.id()))
-                .show(ui, |ui| {
-                    node_item(ui, &node.node, renderer, gui_actions_tx);
-                });
-            CollapsingHeader::new("joints: ")
-                .id_salt(Id::new(node.id()).with(node.joint_root.id()))
-                .show(ui, |ui| {
-                    node_item(ui, &node.joint_root, renderer, gui_actions_tx);
-                });
+            for (skin_index, joint_index) in node.joints() {
+                ui.label(format!(
+                    "Skin index: #{}, joint index: #{}",
+                    skin_index, joint_index
+                ));
+            }
+            node_item(ui, &node.node, renderer, gui_actions_tx);
         });
 }
 
@@ -215,6 +189,20 @@ pub fn camera_node(
         });
 }
 
+pub fn skin_node(
+    ui: &mut Ui,
+    skin: &SkinNode,
+    renderer: &Renderer,
+    gui_actions_tx: &mut Sender<GuiAction>,
+) {
+    CollapsingHeader::new(format!("Skin #{}", skin.id()))
+        .id_salt(skin.id())
+        .show(ui, |ui| {
+            ui.label(format!("Skin id: {}", skin.skin_id()));
+            node_item(ui, &skin.node, renderer, gui_actions_tx);
+        });
+}
+
 pub fn node_item(
     ui: &mut Ui,
     item: &RenderNodeItem,
@@ -230,6 +218,7 @@ pub fn node_item(
         RenderNodeItem::Crosshair(crosshair) => crosshair_node(ui, crosshair),
         RenderNodeItem::Joint(joint) => joint_node(ui, joint, renderer, gui_actions_tx),
         RenderNodeItem::Camera(camera) => camera_node(ui, camera, renderer, gui_actions_tx),
+        RenderNodeItem::Skin(skin) => skin_node(ui, skin, renderer, gui_actions_tx),
     }
 }
 

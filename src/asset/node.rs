@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use glam::{Mat4, Quat, Vec3};
 
@@ -98,7 +98,7 @@ pub struct NodeAsset {
     pub name: Option<String>,
     pub transform: Option<NodeTransform>,
     pub mesh: Option<MeshAsset>,
-    pub skin: Option<SkinAsset>,
+    pub skin: Option<Arc<SkinAsset>>,
     pub camera: Option<CameraAsset>,
     pub has_animation: bool,
     pub children: Vec<NodeAsset>,

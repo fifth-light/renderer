@@ -2,7 +2,7 @@ use core::slice;
 
 use wgpu::{Device, Queue};
 
-use crate::renderer::context::Context;
+use crate::renderer::context::{GlobalContext, LocalContext};
 
 use super::{
     new_node_id, transform::TransformNode, OngoingRenderState, RenderNode, RenderNodeItem,
@@ -21,14 +21,15 @@ impl RenderNode for GroupNode {
         self.id
     }
 
-    fn update(&mut self, context: &Context, invalid: bool) -> bool {
-        let mut updated = false;
+    fn update(
+        &mut self,
+        local_context: &LocalContext,
+        global_context: &mut GlobalContext,
+        invalid: bool,
+    ) {
         for item in &mut self.nodes {
-            if item.update(context, invalid) {
-                updated = true
-            }
+            item.update(local_context, global_context, invalid)
         }
-        updated
     }
 
     fn prepare(&mut self, device: &Device, queue: &Queue, renderer_state: &mut RendererState) {
@@ -84,9 +85,7 @@ impl GroupNode {
                         find_node(&mut transform.node, id)
                     }
                 }
-                RenderNodeItem::Joint(joint) => {
-                    find_node(&mut joint.node, id).or(find_node(&mut joint.joint_root, id))
-                }
+                RenderNodeItem::Joint(joint) => find_node(&mut joint.node, id),
                 _ => None,
             }
         }

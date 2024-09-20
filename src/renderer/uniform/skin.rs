@@ -10,12 +10,12 @@ use wgpu::{
 pub const MAX_JOINTS: usize = 1024;
 
 #[derive(Debug)]
-pub struct JointsUniformBuffer {
+pub struct SkinUniformBuffer {
     buffer: Buffer,
     pub items: Vec<Mat4>,
 }
 
-impl JointsUniformBuffer {
+impl SkinUniformBuffer {
     pub fn new(device: &Device, items: Vec<Mat4>) -> Self {
         assert!(items.len() <= MAX_JOINTS);
         let padded_items: Vec<[f32; 16]> = items
