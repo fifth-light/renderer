@@ -101,7 +101,7 @@ impl RenderNode for SkinNode {
             let buffer = SkinUniformBuffer::new(device, items);
             let bind_group = device.create_bind_group(&BindGroupDescriptor {
                 label: Some("Skin Bind Group"),
-                layout: &renderer_state.instance_uniform_layout,
+                layout: renderer_state.bind_group_layout().instance_uniform_layout(),
                 entries: &[BindGroupEntry {
                     binding: 0,
                     resource: buffer.buffer().as_entire_binding(),

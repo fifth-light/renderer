@@ -20,16 +20,16 @@ fn duration_format(duration: Duration) -> String {
 }
 
 fn animation_item(ui: &mut Ui, animation: &AnimationNode) {
-    let label = format!("Animation #{}", animation.id);
+    let label = format!("Animation #{}", animation.id());
     CollapsingHeader::new(label)
-        .id_salt(animation.id)
+        .id_salt(animation.id())
         .show(ui, |ui| {
             ui.label(format!(
                 "Length: {:#.03}s",
-                duration_format(animation.length)
+                duration_format(*animation.length())
             ));
-            ui.label(format!("Target node: #{}", animation.target_node));
-            match &animation.sampler {
+            ui.label(format!("Target node: #{}", animation.target_node()));
+            match animation.sampler() {
                 AnimationSampler::Rotation(AnimationKeyFrames::Linear(keyframes)) => {
                     ui.label(format!("Rotation, Linear (keyframes: {})", keyframes.len()));
                 }
@@ -82,56 +82,57 @@ fn animation_group(
     animation: &AnimationGroupNode,
     gui_actions_tx: &mut Sender<GuiAction>,
 ) {
-    let label = match &animation.label {
+    let label = match &animation.label() {
         Some(label) => format!("Animation Group \"{}\"", label),
-        None => format!("Animation Group #{}", animation.id),
+        None => format!("Animation Group #{}", animation.id()),
     };
     CollapsingHeader::new(label)
-        .id_salt(animation.id)
+        .id_salt(animation.id())
         .show(ui, |ui| {
             ui.label(format!(
                 "Length: {:#.03}s",
-                duration_format(animation.length)
+                duration_format(animation.length())
             ));
-            match animation.state {
+            match animation.state() {
                 AnimationState::Stopped => {
                     ui.label("Stopped");
                     if ui.button("Play once").clicked() {
-                        let _ = gui_actions_tx.send(GuiAction::StartAnimationOnce(animation.id));
+                        let _ = gui_actions_tx.send(GuiAction::StartAnimationOnce(animation.id()));
                     }
                     if ui.button("Play repeatedly").clicked() {
-                        let _ = gui_actions_tx.send(GuiAction::StartAnimationRepeat(animation.id));
+                        let _ =
+                            gui_actions_tx.send(GuiAction::StartAnimationRepeat(animation.id()));
                     }
                     if ui.button("Play loop").clicked() {
-                        let _ = gui_actions_tx.send(GuiAction::StartAnimationLoop(animation.id));
+                        let _ = gui_actions_tx.send(GuiAction::StartAnimationLoop(animation.id()));
                     }
                 }
                 AnimationState::Once(start_time) => {
-                    let duration: Duration = *time - start_time;
+                    let duration: Duration = *time - *start_time;
                     ui.label("Once");
                     ui.label(format!("Duration: {}", duration_format(duration)));
                     if ui.button("Stop").clicked() {
-                        let _ = gui_actions_tx.send(GuiAction::StopAnimation(animation.id));
+                        let _ = gui_actions_tx.send(GuiAction::StopAnimation(animation.id()));
                     }
                 }
                 AnimationState::Repeat(start_time) => {
-                    let duration: Duration = *time - start_time;
+                    let duration: Duration = *time - *start_time;
                     ui.label("Repeat");
                     ui.label(format!("Duration: {}", duration_format(duration)));
                     if ui.button("Stop").clicked() {
-                        let _ = gui_actions_tx.send(GuiAction::StopAnimation(animation.id));
+                        let _ = gui_actions_tx.send(GuiAction::StopAnimation(animation.id()));
                     }
                 }
                 AnimationState::Loop(start_time) => {
-                    let duration: Duration = *time - start_time;
+                    let duration: Duration = *time - *start_time;
                     ui.label("Loop");
                     ui.label(format!("Duration: {}", duration_format(duration)));
                     if ui.button("Stop").clicked() {
-                        let _ = gui_actions_tx.send(GuiAction::StopAnimation(animation.id));
+                        let _ = gui_actions_tx.send(GuiAction::StopAnimation(animation.id()));
                     }
                 }
             };
-            for node in animation.nodes.iter() {
+            for node in animation.nodes().iter() {
                 animation_item(ui, node);
             }
         });

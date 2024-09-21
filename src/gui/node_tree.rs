@@ -12,6 +12,7 @@ use crate::{
             crosshair::CrosshairNode,
             group::GroupNode,
             joint::JointNode,
+            light::{LightNode, LightParam},
             primitive::{PrimitiveNode, PrimitiveNodeContent},
             skin::SkinNode,
             transform::TransformNode,
@@ -108,7 +109,7 @@ pub fn transform_node(
 pub fn crosshair_node(ui: &mut Ui, node: &CrosshairNode) {
     CollapsingHeader::new(format!("Crosshair #{}", node.id()))
         .id_salt(node.id())
-        .show(ui, |ui| primitive_node(ui, node.item()));
+        .show(ui, |ui| primitive_node(ui, node.node()));
 }
 
 pub fn joint_node(
@@ -203,6 +204,40 @@ pub fn skin_node(
         });
 }
 
+pub fn light_node(ui: &mut Ui, light: &LightNode) {
+    CollapsingHeader::new(format!("Light #{}", light.id()))
+        .id_salt(light.id())
+        .show(ui, |ui| {
+            match light.param() {
+                LightParam::Point {
+                    color,
+                    constant,
+                    linear,
+                    quadratic,
+                } => {
+                    ui.label("Type: Point");
+                    ui.label(format!("Color: {:#.2}", color));
+                    ui.label(format!("Constant: {:#.2}", constant));
+                    ui.label(format!("Linear: {:#.2}", linear));
+                    ui.label(format!("Quadratic: {:#.2}", quadratic));
+                }
+                LightParam::Parallel {
+                    direction,
+                    color,
+                    strength,
+                } => {
+                    ui.label("Type: Parallel");
+                    ui.label(format!("Direction: {:#.2}", direction));
+                    ui.label(format!("Color: {:#.2}", color));
+                    ui.label(format!("Constant: {:#.2}", strength));
+                }
+            };
+            if let Some(node) = light.node() {
+                primitive_node(ui, node);
+            }
+        });
+}
+
 pub fn node_item(
     ui: &mut Ui,
     item: &RenderNodeItem,
@@ -219,6 +254,7 @@ pub fn node_item(
         RenderNodeItem::Joint(joint) => joint_node(ui, joint, renderer, gui_actions_tx),
         RenderNodeItem::Camera(camera) => camera_node(ui, camera, renderer, gui_actions_tx),
         RenderNodeItem::Skin(skin) => skin_node(ui, skin, renderer, gui_actions_tx),
+        RenderNodeItem::Light(light) => light_node(ui, light),
     }
 }
 

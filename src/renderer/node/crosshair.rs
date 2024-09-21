@@ -1,31 +1,26 @@
-use wgpu::{Device, Queue};
+use wgpu::{Device, PrimitiveTopology, Queue};
 
-use crate::{
-    asset::primitive::{PrimitiveAsset, PrimitiveAssetMode},
-    renderer::{
-        context::{GlobalContext, LocalContext},
-        loader::RendererAssetLoader,
-    },
+use crate::renderer::{
+    context::{GlobalContext, LocalContext},
+    pipeline::{PipelineIdentifier, Pipelines, ShaderAlphaMode, ShaderType},
+    vertex::{ColorVertex, VertexBuffer},
+    RendererBindGroupLayout,
 };
 
-use super::{new_node_id, primitive::PrimitiveNode, OngoingRenderState, RenderNode, RendererState};
+use super::{
+    new_node_id,
+    primitive::{PrimitiveNode, PrimitiveNodeContent},
+    OngoingRenderState, RenderNode, RendererState,
+};
 
-const CROSSHAIR_POSITIONS: &[[f32; 3]] = &[
-    [0.0, 0.0, 0.0],
-    [1.0, 0.0, 0.0],
-    [0.0, 0.0, 0.0],
-    [0.0, 1.0, 0.0],
-    [0.0, 0.0, 0.0],
-    [0.0, 0.0, 1.0],
-];
-
-const CROSSHAIR_VERTEX_COLORS: &[[f32; 4]] = &[
-    [1.0, 0.0, 0.0, 1.0],
-    [1.0, 0.0, 0.0, 1.0],
-    [0.0, 1.0, 0.0, 1.0],
-    [0.0, 1.0, 0.0, 1.0],
-    [0.0, 0.0, 1.0, 1.0],
-    [0.0, 0.0, 1.0, 1.0],
+#[rustfmt::skip]
+const CROSSHAIR_VERTICES: &[ColorVertex] = &[
+    ColorVertex { position: [0.0, 0.0, 0.0], color: [1.0, 0.0, 0.0, 1.0], normal: [0.0, 0.0, 0.0] },
+    ColorVertex { position: [1.0, 0.0, 0.0], color: [1.0, 0.0, 0.0, 1.0], normal: [0.0, 0.0, 0.0] },
+    ColorVertex { position: [0.0, 0.0, 0.0], color: [0.0, 1.0, 0.0, 1.0], normal: [0.0, 0.0, 0.0] },
+    ColorVertex { position: [0.0, 1.0, 0.0], color: [0.0, 1.0, 0.0, 1.0], normal: [0.0, 0.0, 0.0] },
+    ColorVertex { position: [0.0, 0.0, 0.0], color: [0.0, 0.0, 1.0, 1.0], normal: [0.0, 0.0, 0.0] },
+    ColorVertex { position: [0.0, 0.0, 1.0], color: [0.0, 0.0, 1.0, 1.0], normal: [0.0, 0.0, 0.0] },
 ];
 
 #[derive(Debug)]
@@ -37,27 +32,27 @@ pub struct CrosshairNode {
 impl CrosshairNode {
     pub fn new(
         device: &Device,
-        queue: &Queue,
-        asset_node_loader: &mut RendererAssetLoader,
+        bind_group_layouts: &RendererBindGroupLayout,
+        pipelines: &mut Pipelines,
     ) -> CrosshairNode {
-        let asset = PrimitiveAsset {
-            name: None,
-            positions: CROSSHAIR_POSITIONS.to_vec(),
-            vertex_color: vec![CROSSHAIR_VERTEX_COLORS.to_vec()],
-            tex_coords: vec![],
-            skin: vec![],
-            material: None,
-            indices: None,
-            mode: PrimitiveAssetMode::LineList,
-        };
-        let node = asset_node_loader.load_primitive(device, queue, asset);
+        let buffer = VertexBuffer::new(device, CROSSHAIR_VERTICES, None);
+        let pipeline = pipelines.get(
+            device,
+            bind_group_layouts,
+            PipelineIdentifier {
+                shader: ShaderType::Light,
+                primitive_topology: PrimitiveTopology::LineList,
+                alpha_mode: ShaderAlphaMode::Opaque,
+            },
+        );
+        let node = PrimitiveNode::new(None, PrimitiveNodeContent::Color { buffer }, pipeline);
         CrosshairNode {
             id: new_node_id(),
             node,
         }
     }
 
-    pub fn item(&self) -> &PrimitiveNode {
+    pub fn node(&self) -> &PrimitiveNode {
         &self.node
     }
 }

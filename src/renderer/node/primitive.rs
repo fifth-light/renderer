@@ -1,10 +1,13 @@
 use std::{fmt::Debug, sync::Arc};
 
+use log::warn;
 use wgpu::BindGroup;
 
 use crate::renderer::{
-    index::IndexBuffer, pipeline::RenderPipelineItem, vertex::VertexBuffer, OngoingRenderState,
-    RenderBindGroups, RendererState,
+    index::IndexBuffer,
+    pipeline::{RenderPipelineItem, ShaderType},
+    vertex::VertexBuffer,
+    OngoingRenderState, RenderBindGroups, RendererState,
 };
 
 use super::{new_node_id, RenderNode};
@@ -60,12 +63,39 @@ impl RenderNode for PrimitiveNode {
             .render_pass
             .set_pipeline(self.pipeline.render_pipeline());
         let vertex = match &self.content {
-            PrimitiveNodeContent::ColorSkin { buffer } | PrimitiveNodeContent::Color { buffer } => {
+            PrimitiveNodeContent::Color { buffer } => {
+                assert!(matches!(
+                    self.pipeline.shader_type(),
+                    ShaderType::Color | ShaderType::Light
+                ));
                 ongoing_state.bind_groups(RenderBindGroups::Color);
                 buffer
             }
-            PrimitiveNodeContent::TextureSkin { buffer, bind_group }
-            | PrimitiveNodeContent::Texture { buffer, bind_group } => {
+            PrimitiveNodeContent::ColorSkin { buffer } => {
+                assert_eq!(self.pipeline.shader_type(), ShaderType::ColorSkin);
+                if !ongoing_state.is_joint_bound() {
+                    warn!(
+                        "Trying to draw skinned primitive node #{} without joints bound.",
+                        self.id
+                    );
+                    return;
+                }
+                ongoing_state.bind_groups(RenderBindGroups::Color);
+                buffer
+            }
+            PrimitiveNodeContent::Texture { buffer, bind_group } => {
+                assert_eq!(self.pipeline.shader_type(), ShaderType::Texture);
+                ongoing_state.bind_groups(RenderBindGroups::Texture {
+                    texture: bind_group,
+                });
+                buffer
+            }
+            PrimitiveNodeContent::TextureSkin { buffer, bind_group } => {
+                assert_eq!(self.pipeline.shader_type(), ShaderType::TextureSkin);
+                if !ongoing_state.is_joint_bound() {
+                    warn!("Trying to draw a skinned primitive without joints bound.");
+                    return;
+                }
                 ongoing_state.bind_groups(RenderBindGroups::Texture {
                     texture: bind_group,
                 });

@@ -4,6 +4,7 @@ pub mod loader;
 pub mod material;
 pub mod mesh;
 pub mod node;
+mod normal;
 pub mod primitive;
 pub mod scene;
 pub mod skin;

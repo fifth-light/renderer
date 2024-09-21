@@ -34,8 +34,4 @@ impl DepthTexture {
     pub fn texture_view(&self) -> &TextureView {
         &self.texture_view
     }
-
-    pub fn format(&self) -> TextureFormat {
-        DEPTH_TEXTURE_FORMAT
-    }
 }

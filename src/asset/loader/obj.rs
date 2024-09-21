@@ -9,12 +9,13 @@ use tobj::{LoadError, LoadOptions};
 use crate::asset::{
     material::MaterialAsset,
     mesh::MeshAsset,
+    normal::calculate_normal,
     primitive::{PrimitiveAsset, PrimitiveAssetMode},
     texture::{SamplerAsset, TextureAssetId},
 };
 
 use super::{
-    pad_color_vec3_to_vec4,
+    chunk_vec3, pad_color_vec3_to_vec4,
     texture::{TextureLoadError, TextureLoader},
 };
 
@@ -69,11 +70,16 @@ impl ObjLoader {
             .map(|model| {
                 let mesh = model.mesh;
 
-                let positions = mesh
-                    .positions
-                    .chunks_exact(3)
-                    .map(|chunk| chunk.try_into().unwrap())
-                    .collect();
+                let positions = chunk_vec3(mesh.positions);
+                let normals: Vec<[f32; 3]> = if !mesh.normals.is_empty() {
+                    chunk_vec3(mesh.normals)
+                } else {
+                    calculate_normal(
+                        PrimitiveAssetMode::TriangleList,
+                        &positions,
+                        Some(&mesh.indices),
+                    )
+                };
                 let tex_coords = if !mesh.texcoords.is_empty() {
                     let tex_coords = mesh
                         .texcoords
@@ -115,6 +121,7 @@ impl ObjLoader {
                         name: None,
                         diffuse_color: material.diffuse.map(pad_color_vec3_to_vec4),
                         diffuse_texture,
+                        alpha_mode: None,
                     };
                     Some(material)
                 } else {
@@ -124,6 +131,7 @@ impl ObjLoader {
                 Ok(PrimitiveAsset {
                     name: Some(model.name),
                     positions,
+                    normals,
                     tex_coords: tex_coords.into_iter().collect(),
                     vertex_color: vertex_color.into_iter().collect(),
                     indices: Some(mesh.indices),

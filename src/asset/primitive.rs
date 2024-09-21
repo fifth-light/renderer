@@ -1,6 +1,6 @@
 use super::material::MaterialAsset;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PrimitiveAssetMode {
     Points,
     LineStrip,
@@ -25,6 +25,7 @@ pub struct PrimitiveAsset {
     pub name: Option<String>,
 
     pub positions: Vec<[f32; 3]>,
+    pub normals: Vec<[f32; 3]>,
     pub tex_coords: Vec<TexCoords>,
     pub vertex_color: Vec<VertexColor>,
     pub indices: Option<Vec<u32>>,

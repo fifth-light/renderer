@@ -7,6 +7,7 @@ use camera::CameraNode;
 use crosshair::CrosshairNode;
 use group::GroupNode;
 use joint::JointNode;
+use light::LightNode;
 use primitive::PrimitiveNode;
 use skin::SkinNode;
 use transform::TransformNode;
@@ -21,6 +22,7 @@ pub mod camera;
 pub mod crosshair;
 pub mod group;
 pub mod joint;
+pub mod light;
 pub mod primitive;
 pub mod skin;
 pub mod transform;
@@ -61,6 +63,7 @@ pub enum RenderNodeItem {
     Joint(Box<JointNode>),
     Skin(Box<SkinNode>),
     Camera(Box<CameraNode>),
+    Light(Box<LightNode>),
 }
 
 // Manually implement Debug to reduce a level of elements in debug tree
@@ -74,6 +77,7 @@ impl Debug for RenderNodeItem {
             RenderNodeItem::Joint(joint) => joint.fmt(f),
             RenderNodeItem::Skin(skin) => skin.fmt(f),
             RenderNodeItem::Camera(camera) => camera.fmt(f),
+            RenderNodeItem::Light(light) => light.fmt(f),
         }
     }
 }
@@ -88,6 +92,7 @@ impl RenderNode for RenderNodeItem {
             RenderNodeItem::Joint(joint) => joint.id(),
             RenderNodeItem::Skin(skin) => skin.id(),
             RenderNodeItem::Camera(camera) => camera.id(),
+            RenderNodeItem::Light(light) => light.id(),
         }
     }
 
@@ -109,6 +114,7 @@ impl RenderNode for RenderNodeItem {
             RenderNodeItem::Joint(joint) => joint.update(local_context, global_context, invalid),
             RenderNodeItem::Skin(skin) => skin.update(local_context, global_context, invalid),
             RenderNodeItem::Camera(camera) => camera.update(local_context, global_context, invalid),
+            RenderNodeItem::Light(light) => light.update(local_context, global_context, invalid),
         }
     }
 
@@ -125,6 +131,7 @@ impl RenderNode for RenderNodeItem {
             RenderNodeItem::Joint(joint) => joint.prepare(device, queue, renderer_state),
             RenderNodeItem::Skin(skin) => skin.prepare(device, queue, renderer_state),
             RenderNodeItem::Camera(camera) => camera.prepare(device, queue, renderer_state),
+            RenderNodeItem::Light(light) => light.prepare(device, queue, renderer_state),
         }
     }
 
@@ -141,6 +148,7 @@ impl RenderNode for RenderNodeItem {
             RenderNodeItem::Joint(joint) => joint.draw(renderer_state, ongoing_state),
             RenderNodeItem::Skin(skin) => skin.draw(renderer_state, ongoing_state),
             RenderNodeItem::Camera(camera) => camera.draw(renderer_state, ongoing_state),
+            RenderNodeItem::Light(light) => light.draw(renderer_state, ongoing_state),
         }
     }
 }

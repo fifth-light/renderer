@@ -10,7 +10,7 @@ use crate::asset::animation::{
     AnimationKeyFrame, AnimationKeyFrames, AnimationSampler, Interpolate,
 };
 
-use super::node::group::GroupNode;
+use super::node::{group::GroupNode, new_node_id};
 
 #[derive(Debug, Default)]
 pub enum AnimationState {
@@ -23,13 +23,38 @@ pub enum AnimationState {
 
 #[derive(Debug)]
 pub struct AnimationNode {
-    pub id: usize,
-    pub target_node: usize,
-    pub sampler: AnimationSampler,
-    pub length: Duration,
+    id: usize,
+    target_node: usize,
+    sampler: AnimationSampler,
+    length: Duration,
 }
 
 impl AnimationNode {
+    pub fn new(target_node: usize, sampler: AnimationSampler, length: Duration) -> Self {
+        Self {
+            id: new_node_id(),
+            target_node,
+            sampler,
+            length,
+        }
+    }
+
+    pub fn id(&self) -> usize {
+        self.id
+    }
+
+    pub fn target_node(&self) -> usize {
+        self.target_node
+    }
+
+    pub fn sampler(&self) -> &AnimationSampler {
+        &self.sampler
+    }
+
+    pub fn length(&self) -> &Duration {
+        &self.length
+    }
+
     pub fn update(&self, node_tree: &mut GroupNode, time: &Duration) {
         let node = if let Some(node) = node_tree.find_transform_node_mut(self.target_node) {
             node
@@ -132,14 +157,48 @@ impl AnimationNode {
 }
 
 pub struct AnimationGroupNode {
-    pub id: usize,
-    pub label: Option<String>,
-    pub state: AnimationState,
-    pub nodes: Vec<AnimationNode>,
-    pub length: Duration,
+    id: usize,
+    nodes: Vec<AnimationNode>,
+    length: Duration,
+    state: AnimationState,
+    label: Option<String>,
 }
 
 impl AnimationGroupNode {
+    pub fn new(nodes: Vec<AnimationNode>, length: Duration, label: Option<String>) -> Self {
+        Self {
+            id: new_node_id(),
+            nodes,
+            length,
+            state: AnimationState::Stopped,
+            label,
+        }
+    }
+
+    pub fn id(&self) -> usize {
+        self.id
+    }
+
+    pub fn label(&self) -> Option<&str> {
+        self.label.as_deref()
+    }
+
+    pub fn state(&self) -> &AnimationState {
+        &self.state
+    }
+
+    pub fn length(&self) -> Duration {
+        self.length
+    }
+
+    pub fn set_state(&mut self, state: AnimationState) {
+        self.state = state;
+    }
+
+    pub fn nodes(&self) -> &[AnimationNode] {
+        &self.nodes
+    }
+
     pub fn update(&mut self, node_tree: &mut GroupNode, time: &Instant) {
         match self.state {
             AnimationState::Stopped => (),

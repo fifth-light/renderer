@@ -1,16 +1,16 @@
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use wgpu::{
-    include_wgsl, BlendComponent, BlendState, ColorTargetState, ColorWrites, CompareFunction,
-    DepthBiasState, DepthStencilState, Device, Face, FragmentState, FrontFace, MultisampleState,
-    PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology,
-    RenderPipeline, RenderPipelineDescriptor, ShaderModule, StencilState, TextureFormat,
-    VertexState,
+    include_wgsl, BlendComponent, BlendFactor, BlendOperation, BlendState, ColorTargetState,
+    ColorWrites, CompareFunction, DepthBiasState, DepthStencilState, Device, Face, FragmentState,
+    FrontFace, MultisampleState, PipelineLayout, PipelineLayoutDescriptor, PolygonMode,
+    PrimitiveState, PrimitiveTopology, RenderPipeline, RenderPipelineDescriptor, ShaderModule,
+    StencilState, TextureFormat, VertexState,
 };
 
 use super::{
     vertex::{ColorSkinVertex, ColorVertex, TextureSkinVertex, TextureVertex, Vertex},
-    RendererState,
+    RendererBindGroupLayout, DEPTH_TEXTURE_FORMAT,
 };
 
 #[derive(Debug)]
@@ -19,6 +19,7 @@ pub struct RenderPipelineItem {
     #[allow(unused)]
     #[cfg(debug_assertions)]
     label: Option<String>,
+    shader_type: ShaderType,
 }
 
 #[derive(Debug)]
@@ -30,34 +31,36 @@ pub struct RenderPipelineItemDescriptor<'a> {
     pub target_texture_format: TextureFormat,
     pub primitive_topology: PrimitiveTopology,
     pub shader_type: ShaderType,
+    pub alpha_mode: ShaderAlphaMode,
 }
 
 impl RenderPipelineItem {
     fn create_pipeline_layout(
         device: &Device,
-        renderer_state: &RendererState,
+        bind_group_layouts: &RendererBindGroupLayout,
         descriptor: &RenderPipelineItemDescriptor,
     ) -> PipelineLayout {
         let bind_group_layouts: &[_] = match descriptor.shader_type {
-            ShaderType::Color => &[
-                &renderer_state.global_uniform_layout,
-                &renderer_state.instance_uniform_layout,
+            ShaderType::Light | ShaderType::Color => &[
+                &bind_group_layouts.global_uniform_layout,
+                &bind_group_layouts.instance_uniform_layout,
             ],
             ShaderType::Texture => &[
-                &renderer_state.global_uniform_layout,
-                &renderer_state.instance_uniform_layout,
-                &renderer_state.texture_layout,
+                &bind_group_layouts.global_uniform_layout,
+                &bind_group_layouts.instance_uniform_layout,
+                &bind_group_layouts.texture_layout,
             ],
             ShaderType::ColorSkin => &[
-                &renderer_state.global_uniform_layout,
-                &renderer_state.instance_uniform_layout,
-                &renderer_state.joint_layout,
+                &bind_group_layouts.global_uniform_layout,
+                &bind_group_layouts.instance_uniform_layout,
+                &bind_group_layouts.texture_layout,
+                &bind_group_layouts.joint_layout,
             ],
             ShaderType::TextureSkin => &[
-                &renderer_state.global_uniform_layout,
-                &renderer_state.instance_uniform_layout,
-                &renderer_state.texture_layout,
-                &renderer_state.joint_layout,
+                &bind_group_layouts.global_uniform_layout,
+                &bind_group_layouts.instance_uniform_layout,
+                &bind_group_layouts.texture_layout,
+                &bind_group_layouts.joint_layout,
             ],
         };
         device.create_pipeline_layout(&PipelineLayoutDescriptor {
@@ -69,15 +72,37 @@ impl RenderPipelineItem {
 
     fn create_render_pipeline(
         device: &Device,
-        renderer_state: &RendererState,
         pipeline_layout: &PipelineLayout,
         descriptor: &RenderPipelineItemDescriptor,
     ) -> RenderPipeline {
         let vertex_descriptor = match descriptor.shader_type {
-            ShaderType::Color => ColorVertex::desc(),
+            ShaderType::Light | ShaderType::Color => ColorVertex::desc(),
             ShaderType::Texture => TextureVertex::desc(),
             ShaderType::ColorSkin => ColorSkinVertex::desc(),
             ShaderType::TextureSkin => TextureSkinVertex::desc(),
+        };
+        // TODO: now the shader always see Opaque mode as Mask mode
+        let blend_state = match descriptor.alpha_mode {
+            ShaderAlphaMode::Opaque => BlendState {
+                color: BlendComponent::REPLACE,
+                alpha: BlendComponent::REPLACE,
+            },
+            ShaderAlphaMode::Mask => BlendState {
+                color: BlendComponent::REPLACE,
+                alpha: BlendComponent::REPLACE,
+            },
+            ShaderAlphaMode::Blend => BlendState {
+                color: BlendComponent {
+                    src_factor: BlendFactor::One,
+                    dst_factor: BlendFactor::OneMinusSrcAlpha,
+                    operation: BlendOperation::Add,
+                },
+                alpha: BlendComponent {
+                    src_factor: BlendFactor::SrcAlpha,
+                    dst_factor: BlendFactor::DstAlpha,
+                    operation: BlendOperation::Max,
+                },
+            },
         };
         device.create_render_pipeline(&RenderPipelineDescriptor {
             label: descriptor.label,
@@ -94,10 +119,7 @@ impl RenderPipelineItem {
                 compilation_options: Default::default(),
                 targets: &[Some(ColorTargetState {
                     format: descriptor.target_texture_format,
-                    blend: Some(BlendState {
-                        color: BlendComponent::REPLACE,
-                        alpha: BlendComponent::REPLACE,
-                    }),
+                    blend: Some(blend_state),
                     write_mask: ColorWrites::all(),
                 })],
             }),
@@ -111,7 +133,7 @@ impl RenderPipelineItem {
                 conservative: false,
             },
             depth_stencil: Some(DepthStencilState {
-                format: renderer_state.depth_texture.format(),
+                format: DEPTH_TEXTURE_FORMAT,
                 depth_write_enabled: true,
                 depth_compare: CompareFunction::Less,
                 stencil: StencilState::default(),
@@ -129,17 +151,21 @@ impl RenderPipelineItem {
 
     pub fn new(
         device: &Device,
-        renderer_state: &RendererState,
+        bind_group_layouts: &RendererBindGroupLayout,
         descriptor: &RenderPipelineItemDescriptor,
     ) -> Self {
-        let pipeline_layout = Self::create_pipeline_layout(device, renderer_state, descriptor);
-        let render_pipeline =
-            Self::create_render_pipeline(device, renderer_state, &pipeline_layout, descriptor);
+        let pipeline_layout = Self::create_pipeline_layout(device, bind_group_layouts, descriptor);
+        let render_pipeline = Self::create_render_pipeline(device, &pipeline_layout, descriptor);
         Self {
             render_pipeline,
             #[cfg(debug_assertions)]
             label: descriptor.label.map(|label| label.to_string()),
+            shader_type: descriptor.shader_type,
         }
+    }
+
+    pub fn shader_type(&self) -> ShaderType {
+        self.shader_type
     }
 
     pub fn render_pipeline(&self) -> &RenderPipeline {
@@ -148,10 +174,7 @@ impl RenderPipelineItem {
 }
 
 pub struct Pipelines {
-    color_shader: ShaderModule,
-    texture_shader: ShaderModule,
-    color_skin_shader: ShaderModule,
-    texture_skin_shader: ShaderModule,
+    shader_module: ShaderModule,
     target_texture_format: TextureFormat,
     items: HashMap<PipelineIdentifier, Arc<RenderPipelineItem>>,
 }
@@ -160,31 +183,31 @@ pub struct Pipelines {
 pub struct PipelineIdentifier {
     pub shader: ShaderType,
     pub primitive_topology: PrimitiveTopology,
+    pub alpha_mode: ShaderAlphaMode,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ShaderType {
+    Light,
     Color,
     Texture,
     ColorSkin,
     TextureSkin,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum ShaderAlphaMode {
+    #[default]
+    Opaque,
+    Mask,
+    Blend,
+}
+
 impl Pipelines {
     pub fn new(device: &Device, target_texture_format: TextureFormat) -> Self {
-        let color_shader =
-            device.create_shader_module(include_wgsl!("../shader/color_shader.wgsl"));
-        let texture_shader =
-            device.create_shader_module(include_wgsl!("../shader/texture_shader.wgsl"));
-        let color_skin_shader =
-            device.create_shader_module(include_wgsl!("../shader/color_skin_shader.wgsl"));
-        let texture_skin_shader =
-            device.create_shader_module(include_wgsl!("../shader/texture_skin_shader.wgsl"));
+        let shader_module = device.create_shader_module(include_wgsl!("../shader/shader.wgsl"));
         Self {
-            color_shader,
-            texture_shader,
-            color_skin_shader,
-            texture_skin_shader,
+            shader_module,
             target_texture_format,
             items: HashMap::new(),
         }
@@ -193,26 +216,28 @@ impl Pipelines {
     fn new_pipeline(
         &mut self,
         device: &Device,
-        renderer_state: &RendererState,
+        bind_group_layouts: &RendererBindGroupLayout,
         identifier: PipelineIdentifier,
     ) -> RenderPipelineItem {
-        let shader_module = match identifier.shader {
-            ShaderType::Color => &self.color_shader,
-            ShaderType::Texture => &self.texture_shader,
-            ShaderType::ColorSkin => &self.color_skin_shader,
-            ShaderType::TextureSkin => &self.texture_skin_shader,
+        let (vertex_entry_name, fragment_entry_name) = match identifier.shader {
+            ShaderType::Light => ("color_vs_main", "light_fs_main"),
+            ShaderType::Color => ("color_vs_main", "color_fs_main"),
+            ShaderType::Texture => ("texture_vs_main", "texture_fs_main"),
+            ShaderType::ColorSkin => ("color_skin_vs_main", "color_fs_main"),
+            ShaderType::TextureSkin => ("texture_skin_vs_main", "texture_fs_main"),
         };
         RenderPipelineItem::new(
             device,
-            renderer_state,
+            bind_group_layouts,
             &RenderPipelineItemDescriptor {
                 label: Some(&format!("{:?}", identifier)),
-                shader_module,
-                vertex_entry_name: "vs_main",
-                fragment_entry_name: "fs_main",
+                shader_module: &self.shader_module,
+                vertex_entry_name,
+                fragment_entry_name,
                 target_texture_format: self.target_texture_format,
                 primitive_topology: identifier.primitive_topology,
                 shader_type: identifier.shader,
+                alpha_mode: identifier.alpha_mode,
             },
         )
     }
@@ -220,13 +245,13 @@ impl Pipelines {
     pub fn get(
         &mut self,
         device: &Device,
-        renderer_state: &RendererState,
+        bind_group_layouts: &RendererBindGroupLayout,
         identifier: PipelineIdentifier,
     ) -> Arc<RenderPipelineItem> {
         if let Some(item) = self.items.get(&identifier) {
             return item.clone();
         }
-        let item = Arc::new(self.new_pipeline(device, renderer_state, identifier));
+        let item = Arc::new(self.new_pipeline(device, bind_group_layouts, identifier));
         self.items.insert(identifier, item.clone());
         item
     }

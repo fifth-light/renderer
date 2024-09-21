@@ -3,6 +3,8 @@ use std::collections::BTreeMap;
 use glam::Mat4;
 use log::warn;
 
+use super::node::light::LightData;
+
 pub static DEFAULT_LOCAL_CONTEXT: LocalContext = LocalContext {
     transform: Mat4::IDENTITY,
 };
@@ -33,6 +35,7 @@ impl LocalContext {
 #[derive(Default)]
 pub struct GlobalContext {
     updated_joints: BTreeMap<usize, BTreeMap<usize, Mat4>>,
+    lights: Vec<LightData>,
 }
 
 impl GlobalContext {
@@ -48,5 +51,13 @@ impl GlobalContext {
 
     pub fn updated_joints(&self) -> &BTreeMap<usize, BTreeMap<usize, Mat4>> {
         &self.updated_joints
+    }
+
+    pub fn add_light(&mut self, data: LightData) {
+        self.lights.push(data);
+    }
+
+    pub fn finish(self) -> Vec<LightData> {
+        self.lights
     }
 }

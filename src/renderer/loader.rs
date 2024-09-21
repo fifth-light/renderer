@@ -13,6 +13,7 @@ use crate::{
     asset::{
         animation::{AnimationAsset, AnimationChannelAsset},
         camera::{CameraAsset, CameraProjectionAsset},
+        material::MaterialAlphaMode,
         mesh::MeshAsset,
         node::{NodeAsset, NodeAssetId},
         primitive::{PrimitiveAsset, PrimitiveAssetMode},
@@ -25,7 +26,6 @@ use crate::{
         pipeline::{PipelineIdentifier, Pipelines, ShaderType},
         texture::TextureItem,
         vertex::{ColorVertex, TextureVertex, VertexBuffer},
-        RendererState,
     },
 };
 
@@ -37,20 +37,21 @@ use crate::renderer::node::{
 };
 
 use super::{
-    animation::{AnimationGroupNode, AnimationNode, AnimationState},
+    animation::{AnimationGroupNode, AnimationNode},
     camera::CameraProjection,
     node::{
         camera::CameraNode,
         joint::JointNode,
-        new_node_id,
         skin::{new_skin_id, SkinData, SkinNode},
         RenderNode,
     },
+    pipeline::ShaderAlphaMode,
     vertex::{ColorSkinVertex, TextureSkinVertex},
+    RendererBindGroupLayout,
 };
 
 pub struct RendererAssetLoader<'a> {
-    state: &'a RendererState,
+    bind_group_layouts: &'a RendererBindGroupLayout,
     texture_cache: HashMap<TextureAssetId, Arc<BindGroup>>,
     animate_nodes: HashMap<NodeAssetId, usize>,
     skins: HashMap<SkinAssetId, Arc<SkinData>>,
@@ -58,9 +59,12 @@ pub struct RendererAssetLoader<'a> {
 }
 
 impl<'a> RendererAssetLoader<'a> {
-    pub fn new(state: &'a RendererState, pipelines: &'a mut Pipelines) -> Self {
+    pub fn new(
+        bind_group_layouts: &'a RendererBindGroupLayout,
+        pipelines: &'a mut Pipelines,
+    ) -> Self {
         Self {
-            state,
+            bind_group_layouts,
             texture_cache: HashMap::new(),
             animate_nodes: HashMap::new(),
             skins: HashMap::new(),
@@ -78,8 +82,9 @@ impl<'a> RendererAssetLoader<'a> {
             return texture.clone();
         }
         let texture = TextureItem::from_asset(device, queue, asset, Some(&asset.id.to_string()));
-        let bind_group =
-            Arc::new(texture.create_bind_group(device, self.state.texture_bind_group_layout()));
+        let bind_group = Arc::new(
+            texture.create_bind_group(device, self.bind_group_layouts.texture_bind_layout()),
+        );
         self.texture_cache
             .insert(asset.id.clone(), bind_group.clone());
         bind_group
@@ -96,9 +101,15 @@ impl<'a> RendererAssetLoader<'a> {
             .map(|indices| IndexBuffer::new(device, &indices, None));
 
         let positions = primitive.positions;
+        let normals = primitive.normals;
         let vertex_color = primitive.vertex_color;
         let tex_coords = primitive.tex_coords;
         let skins = primitive.skin;
+        let alpha_mode = primitive
+            .material
+            .as_ref()
+            .map(|material| material.alpha_mode.unwrap_or_default())
+            .unwrap_or_default();
         let diffuse_color = primitive
             .material
             .as_ref()
@@ -115,17 +126,21 @@ impl<'a> RendererAssetLoader<'a> {
             (_, Some(tex_coords), Some(skin), Some(diffuse_texture)) => {
                 let vertices: Vec<_> = positions
                     .into_iter()
+                    .zip(normals)
                     .zip(tex_coords)
                     .zip(&skin.joints)
                     .zip(&skin.weights)
-                    .map(|(((position, tex_coords), joint_index), joint_weight)| {
-                        TextureSkinVertex {
-                            position,
-                            tex_coords: *tex_coords,
-                            joint_index: *joint_index,
-                            joint_weight: *joint_weight,
-                        }
-                    })
+                    .map(
+                        |((((position, normal), tex_coords), joint_index), joint_weight)| {
+                            TextureSkinVertex {
+                                position,
+                                normal,
+                                tex_coords: *tex_coords,
+                                joint_index: *joint_index,
+                                joint_weight: *joint_weight,
+                            }
+                        },
+                    )
                     .collect();
                 let bind_group = self.load_texture(device, queue, &diffuse_texture);
                 PrimitiveNodeContent::TextureSkin {
@@ -141,14 +156,18 @@ impl<'a> RendererAssetLoader<'a> {
                             .iter()
                             .chain(iter::repeat(&[1.0, 1.0, 1.0, 1.0])),
                     )
+                    .zip(normals)
                     .zip(&skin.joints)
                     .zip(&skin.weights)
                     .map(
-                        |(((position, color), joint_index), joint_weight)| ColorSkinVertex {
-                            position,
-                            color: *color,
-                            joint_index: *joint_index,
-                            joint_weight: *joint_weight,
+                        |((((position, color), normal), joint_index), joint_weight)| {
+                            ColorSkinVertex {
+                                position,
+                                color: *color,
+                                normal,
+                                joint_index: *joint_index,
+                                joint_weight: *joint_weight,
+                            }
                         },
                     )
                     .collect();
@@ -161,14 +180,18 @@ impl<'a> RendererAssetLoader<'a> {
                 let vertices: Vec<_> = positions
                     .into_iter()
                     .zip(iter::repeat(&color))
+                    .zip(normals)
                     .zip(&skin.joints)
                     .zip(&skin.weights)
                     .map(
-                        |(((position, color), joint_index), joint_weight)| ColorSkinVertex {
-                            position,
-                            color: *color,
-                            joint_index: *joint_index,
-                            joint_weight: *joint_weight,
+                        |((((position, color), normal), joint_index), joint_weight)| {
+                            ColorSkinVertex {
+                                position,
+                                color: *color,
+                                normal,
+                                joint_index: *joint_index,
+                                joint_weight: *joint_weight,
+                            }
                         },
                     )
                     .collect();
@@ -180,9 +203,11 @@ impl<'a> RendererAssetLoader<'a> {
                 let vertices: Vec<_> = positions
                     .into_iter()
                     .zip(tex_coords)
-                    .map(|(position, tex_coords)| TextureVertex {
+                    .zip(normals)
+                    .map(|((position, tex_coords), normal)| TextureVertex {
                         position,
                         tex_coords: *tex_coords,
+                        normal,
                     })
                     .collect();
                 let bind_group = self.load_texture(device, queue, &diffuse_texture);
@@ -199,9 +224,11 @@ impl<'a> RendererAssetLoader<'a> {
                             .iter()
                             .chain(iter::repeat(&[1.0, 1.0, 1.0, 1.0])),
                     )
-                    .map(|(position, color)| ColorVertex {
+                    .zip(normals)
+                    .map(|((position, color), normal)| ColorVertex {
                         position,
                         color: *color,
+                        normal,
                     })
                     .collect();
                 PrimitiveNodeContent::Color {
@@ -212,7 +239,12 @@ impl<'a> RendererAssetLoader<'a> {
                 let color = diffuse_color.unwrap_or([1.0, 1.0, 1.0, 1.0]);
                 let vertices: Vec<_> = positions
                     .into_iter()
-                    .map(|position| ColorVertex { position, color })
+                    .zip(normals)
+                    .map(|(position, normal)| ColorVertex {
+                        position,
+                        color,
+                        normal,
+                    })
                     .collect();
                 PrimitiveNodeContent::Color {
                     buffer: VertexBuffer::new(device, &vertices, primitive.name.as_deref()),
@@ -235,8 +267,15 @@ impl<'a> RendererAssetLoader<'a> {
                 PrimitiveNodeContent::TextureSkin { .. } => ShaderType::TextureSkin,
             },
             primitive_topology,
+            alpha_mode: match alpha_mode {
+                MaterialAlphaMode::Opaque => ShaderAlphaMode::Opaque,
+                MaterialAlphaMode::Mask => ShaderAlphaMode::Mask,
+                MaterialAlphaMode::Blend => ShaderAlphaMode::Blend,
+            },
         };
-        let pipeline = self.pipelines.get(device, self.state, pipeline_identifier);
+        let pipeline = self
+            .pipelines
+            .get(device, self.bind_group_layouts, pipeline_identifier);
         PrimitiveNode::new(indices, content, pipeline)
     }
 
@@ -387,12 +426,11 @@ impl<'a> RendererAssetLoader<'a> {
                 return None;
             }
         };
-        Some(AnimationNode {
-            id: new_node_id(),
+        Some(AnimationNode::new(
             target_node,
-            sampler: channel.sampler,
-            length: Duration::from_millis((channel.length * 1000.0) as u64),
-        })
+            channel.sampler,
+            Duration::from_millis((channel.length * 1000.0) as u64),
+        ))
     }
 
     pub fn load_animation(&self, animation: AnimationAsset) -> AnimationGroupNode {
@@ -403,16 +441,10 @@ impl<'a> RendererAssetLoader<'a> {
             .collect();
         let length = nodes
             .iter()
-            .map(|channel| channel.length)
+            .map(|node| *node.length())
             .max_by(|x, y| x.partial_cmp(y).unwrap_or(Ordering::Equal))
             .unwrap_or(Duration::ZERO);
-        AnimationGroupNode {
-            id: new_node_id(),
-            label: animation.name,
-            state: AnimationState::default(),
-            length,
-            nodes,
-        }
+        AnimationGroupNode::new(nodes, length, animation.name)
     }
 
     pub fn load_animations(&self, animations: Vec<AnimationAsset>) -> Vec<AnimationGroupNode> {

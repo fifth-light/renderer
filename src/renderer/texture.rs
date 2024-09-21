@@ -31,9 +31,9 @@ impl TextureItem {
             height: asset.size.1,
             depth_or_array_layers: 1,
         };
-        let (format, data) = match asset.format {
-            TextureAssetFormat::Ru8 => (TextureFormat::R8Unorm, &asset.data),
-            TextureAssetFormat::Rgu8 => (TextureFormat::Rg8Unorm, &asset.data),
+        let (format, data, bytes_per_pixel) = match asset.format {
+            TextureAssetFormat::Ru8 => (TextureFormat::R8Unorm, &asset.data, 1),
+            TextureAssetFormat::Rgu8 => (TextureFormat::Rg8Unorm, &asset.data, 2),
             TextureAssetFormat::Rgbu8 => (
                 TextureFormat::Rgba8UnormSrgb,
                 &asset
@@ -41,10 +41,11 @@ impl TextureItem {
                     .chunks_exact(3)
                     .flat_map(|chunk| chunk.iter().cloned().chain(iter::once(u8::MAX)))
                     .collect::<Vec<u8>>(),
+                4,
             ),
-            TextureAssetFormat::Rgbau8 => (TextureFormat::Rgba8UnormSrgb, &asset.data),
-            TextureAssetFormat::Ru16 => (TextureFormat::R16Unorm, &asset.data),
-            TextureAssetFormat::Rgu16 => (TextureFormat::Rg16Unorm, &asset.data),
+            TextureAssetFormat::Rgbau8 => (TextureFormat::Rgba8UnormSrgb, &asset.data, 4),
+            TextureAssetFormat::Ru16 => (TextureFormat::R16Unorm, &asset.data, 2),
+            TextureAssetFormat::Rgu16 => (TextureFormat::Rg16Unorm, &asset.data, 4),
             TextureAssetFormat::Rgbu16 => (
                 TextureFormat::Rgba16Unorm,
                 &asset
@@ -52,8 +53,9 @@ impl TextureItem {
                     .chunks_exact(6)
                     .flat_map(|chunk| chunk.iter().cloned().chain(u16::MAX.to_le_bytes()))
                     .collect::<Vec<u8>>(),
+                6,
             ),
-            TextureAssetFormat::Rgbau16 => (TextureFormat::Rgba16Unorm, &asset.data),
+            TextureAssetFormat::Rgbau16 => (TextureFormat::Rgba16Unorm, &asset.data, 8),
         };
         let texture = device.create_texture(&TextureDescriptor {
             label,
@@ -75,7 +77,7 @@ impl TextureItem {
             data,
             ImageDataLayout {
                 offset: 0,
-                bytes_per_row: Some(4 * asset.size.0),
+                bytes_per_row: Some(bytes_per_pixel * asset.size.0),
                 rows_per_image: Some(asset.size.1),
             },
             size,
@@ -114,6 +116,56 @@ impl TextureItem {
             texture_view,
             sampler,
             id: asset.id.to_string(),
+        }
+    }
+
+    pub fn empty(device: &Device, queue: &Queue) -> Self {
+        let size = Extent3d {
+            width: 1,
+            height: 1,
+            depth_or_array_layers: 1,
+        };
+        let texture = device.create_texture(&TextureDescriptor {
+            label: None,
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Rgba8Unorm,
+            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        queue.write_texture(
+            ImageCopyTexture {
+                texture: &texture,
+                mip_level: 0,
+                origin: Origin3d::ZERO,
+                aspect: TextureAspect::All,
+            },
+            &[255u8; 4],
+            ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(4),
+                rows_per_image: Some(1),
+            },
+            size,
+        );
+        let texture_view = texture.create_view(&TextureViewDescriptor::default());
+        let sampler = device.create_sampler(&SamplerDescriptor {
+            label: None,
+            address_mode_u: AddressMode::Repeat,
+            address_mode_v: AddressMode::Repeat,
+            address_mode_w: AddressMode::Repeat,
+            mag_filter: FilterMode::Nearest,
+            min_filter: FilterMode::Nearest,
+            mipmap_filter: FilterMode::Nearest,
+            ..Default::default()
+        });
+
+        Self {
+            texture_view,
+            sampler,
+            id: "_empty".to_string(),
         }
     }
 

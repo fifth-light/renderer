@@ -12,7 +12,12 @@ use renderer::{
         animation::AnimationState,
         camera::{CameraProjection, PositionController},
         loader::RendererAssetLoader,
-        node::{crosshair::CrosshairNode, transform::TransformNode, RenderNodeItem},
+        node::{
+            crosshair::CrosshairNode,
+            light::{LightNode, LightParam},
+            transform::TransformNode,
+            RenderNodeItem,
+        },
         pipeline::Pipelines,
         OngoingRenderState, Renderer, DEPTH_TEXTURE_FORMAT,
     },
@@ -111,7 +116,7 @@ impl<'a> State<'a> {
         };
         surface.configure(&device, &config);
 
-        let renderer = Renderer::new(&device, window.inner_size());
+        let renderer = Renderer::new(&device, &queue, window.inner_size());
         let pipelines = Pipelines::new(&device, config.format);
 
         let egui_renderer =
@@ -147,7 +152,8 @@ impl<'a> State<'a> {
     }
 
     fn load_obj(&mut self, path: PathBuf) {
-        let mut asset_loader = RendererAssetLoader::new(&self.renderer.state, &mut self.pipelines);
+        let mut asset_loader =
+            RendererAssetLoader::new(self.renderer.state.bind_group_layout(), &mut self.pipelines);
         let mut obj_loader = ObjLoader::default();
         let base_dir = match path.parent() {
             Some(base_dir) => base_dir,
@@ -172,7 +178,8 @@ impl<'a> State<'a> {
     }
 
     fn load_gltf(&mut self, path: PathBuf) {
-        let mut asset_loader = RendererAssetLoader::new(&self.renderer.state, &mut self.pipelines);
+        let mut asset_loader =
+            RendererAssetLoader::new(self.renderer.state.bind_group_layout(), &mut self.pipelines);
         let (scenes, animations) = match loader::gltf::load_from_path(&path) {
             Ok(scenes) => scenes,
             Err(err) => {
@@ -195,15 +202,34 @@ impl<'a> State<'a> {
     }
 
     fn setup_scene(&mut self) {
-        let mut asset_loader = RendererAssetLoader::new(&self.renderer.state, &mut self.pipelines);
+        let mut pipelines = Pipelines::new(&self.device, self.config.format);
 
-        let crosshair = CrosshairNode::new(&self.device, &self.queue, &mut asset_loader);
-        let transform = TransformNode::from_scale(
+        let crosshair = CrosshairNode::new(
+            &self.device,
+            self.renderer.state.bind_group_layout(),
+            &mut pipelines,
+        );
+        let crosshair_transform = TransformNode::from_scale(
             Vec3::splat(200.0),
             RenderNodeItem::Crosshair(Box::new(crosshair)),
         );
+
+        let global_light = LightNode::new(
+            &self.device,
+            self.renderer.state.bind_group_layout(),
+            &mut pipelines,
+            LightParam::Parallel {
+                direction: Vec3::new(2.0, 3.0, 2.0),
+                color: Vec3::new(1.0, 1.0, 0.8),
+                strength: 1.3,
+            },
+            false,
+        );
+
         self.renderer
-            .add_node(RenderNodeItem::Transform(Box::new(transform)));
+            .add_node(RenderNodeItem::Transform(Box::new(crosshair_transform)));
+        self.renderer
+            .add_node(RenderNodeItem::Light(Box::new(global_light)));
     }
 
     fn resize(&mut self, new_size: PhysicalSize<u32>) {

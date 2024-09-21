@@ -132,7 +132,7 @@ impl Camera {
     }
 
     pub fn update_uniform(&self, buffer: &mut CameraUniformBuffer, default_aspect: f32) {
-        buffer.update_view_proj(self.matrix(default_aspect));
+        buffer.update_view(self.matrix(default_aspect), self.view.eye);
     }
 
     pub fn matrix(&self, default_aspect: f32) -> Mat4 {

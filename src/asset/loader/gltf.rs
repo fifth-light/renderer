@@ -12,6 +12,7 @@ use gltf::{
     animation::{Channel, Interpolation, Property, Sampler},
     camera::Projection,
     image::Format,
+    material::AlphaMode,
     mesh::Mode,
     scene::Transform,
     texture::{MagFilter, MinFilter, WrappingMode},
@@ -25,9 +26,11 @@ use crate::asset::{
         AnimationSampler,
     },
     camera::{CameraAsset, CameraProjectionAsset, OrthographicCameraAsset, PerspectiveCameraAsset},
-    material::MaterialAsset,
+    loader::{chunk_and_clamp_vec3_to_vec4_f32, chunk_and_clamp_vec4_f32, chunk_vec3, chunk_vec4},
+    material::{MaterialAlphaMode, MaterialAsset},
     mesh::MeshAsset,
     node::{DecomposedTransform, MatrixNodeTransform, NodeAsset, NodeAssetId, NodeTransform},
+    normal::calculate_normal,
     primitive::{PrimitiveAsset, PrimitiveAssetMode, PrimitiveSkin, TexCoords, VertexColor},
     scene::SceneAsset,
     skin::{SkinAsset, SkinAssetId},
@@ -37,7 +40,7 @@ use crate::asset::{
     },
 };
 
-use super::pad_color_vec3_to_vec4;
+use super::chunk_mat4;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum AnimationPathType {
@@ -275,46 +278,6 @@ fn load_accessor_normalized(data: &GltfData, accessor: &Accessor) -> Vec<f32> {
     }
 }
 
-fn chunk_vec3<T: Copy>(data: Vec<T>) -> Vec<[T; 3]> {
-    data.chunks_exact(3)
-        .map(|item| item.try_into().unwrap())
-        .collect()
-}
-
-fn chunk_vec4<T: Copy>(data: Vec<T>) -> Vec<[T; 4]> {
-    data.chunks_exact(4)
-        .map(|item| item.try_into().unwrap())
-        .collect()
-}
-
-fn chunk_and_clamp_vec3_to_vec4_f32(data: Vec<f32>) -> Vec<[f32; 4]> {
-    data.chunks_exact(3)
-        .map(|item| {
-            let array: [f32; 3] = item.try_into().unwrap();
-            array.map(|num| num.clamp(0.0, 1.0));
-            pad_color_vec3_to_vec4(array)
-        })
-        .collect()
-}
-
-fn chunk_and_clamp_vec4_f32(data: Vec<f32>) -> Vec<[f32; 4]> {
-    data.chunks_exact(4)
-        .map(|item| {
-            let array: [f32; 4] = item.try_into().unwrap();
-            array.map(|num| num.clamp(0.0, 1.0))
-        })
-        .collect()
-}
-
-fn chunk_mat4(data: Vec<f32>) -> Vec<Mat4> {
-    data.chunks_exact(16)
-        .map(|item| {
-            let array = item.try_into().unwrap();
-            Mat4::from_cols_array(&array)
-        })
-        .collect()
-}
-
 struct GltfDocumentLoader<'a> {
     data: &'a GltfData,
     texture_cache: HashMap<usize, Arc<TextureAsset>>,
@@ -377,11 +340,17 @@ impl<'a> GltfDocumentLoader<'a> {
         } else {
             None
         };
+        let alpha_mode = match material.alpha_mode() {
+            AlphaMode::Opaque => MaterialAlphaMode::Opaque,
+            AlphaMode::Mask => MaterialAlphaMode::Mask,
+            AlphaMode::Blend => MaterialAlphaMode::Blend,
+        };
 
         MaterialAsset {
             name: material.name().map(str::to_string),
             diffuse_color: Some(diffuse_color),
             diffuse_texture,
+            alpha_mode: Some(alpha_mode),
         }
     }
 
@@ -404,6 +373,7 @@ impl<'a> GltfDocumentLoader<'a> {
             });
 
         let mut positions: Option<Vec<[f32; 3]>> = None;
+        let mut normals: Option<Vec<[f32; 3]>> = None;
         let mut tex_coords = Vec::new();
         let mut vertex_color = Vec::new();
         let mut joints = Vec::new();
@@ -422,6 +392,12 @@ impl<'a> GltfDocumentLoader<'a> {
                     assert_eq!(accessor.data_type(), DataType::F32);
                     let data = load_accessor_f32(self.data, &accessor);
                     positions = Some(chunk_vec3(data));
+                }
+                Semantic::Normals => {
+                    assert_eq!(accessor.dimensions(), Dimensions::Vec3);
+                    assert_eq!(accessor.data_type(), DataType::F32);
+                    let data = load_accessor_f32(self.data, &accessor);
+                    normals = Some(chunk_vec3(data));
                 }
                 Semantic::Colors(index) => {
                     ensure_size(&mut vertex_color, index as usize + 1);
@@ -468,6 +444,8 @@ impl<'a> GltfDocumentLoader<'a> {
             }
         }
 
+        let positions = positions.expect("No positions in primitive");
+
         let tex_coords: Vec<TexCoords> = tex_coords
             .into_iter()
             .map(|tex_coords| tex_coords.expect("Missing texture coordinates set"))
@@ -495,10 +473,13 @@ impl<'a> GltfDocumentLoader<'a> {
             Mode::LineLoop => todo!("Unsupported primitive asset mode: LineLoop"),
             Mode::TriangleFan => todo!("Unsupported primitive asset mode: TriangleFan"),
         };
+        let normals =
+            normals.unwrap_or_else(|| calculate_normal(mode, &positions, indices.as_deref()));
 
         PrimitiveAsset {
             name: None,
-            positions: positions.expect("No positions in primitive"),
+            positions,
+            normals,
             tex_coords,
             vertex_color,
             indices,
