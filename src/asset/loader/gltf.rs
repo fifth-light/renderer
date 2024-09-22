@@ -574,9 +574,7 @@ impl<'a> GltfDocumentLoader<'a> {
                     let child = node.children.remove(i);
                     skinned_nodes.push(child);
                 } else {
-                    for child in &mut child.children {
-                        move_skinned_nodes(child, skinned_nodes);
-                    }
+                    move_skinned_nodes(child, skinned_nodes);
                     i += 1;
                 }
             }
