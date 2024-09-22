@@ -101,6 +101,7 @@ impl LightNode {
                 position: *position,
                 color: [color_array[0], color_array[1], color_array[2], 1.0],
                 normal: [0.0, 0.0, 0.0],
+                tangent: [0.0, 0.0, 0.0],
             })
             .collect();
         let buffer = VertexBuffer::new(device, &vertices, None);

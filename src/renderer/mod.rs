@@ -29,6 +29,7 @@ pub mod index;
 pub mod loader;
 pub mod node;
 pub mod pipeline;
+mod tangent;
 pub mod texture;
 pub mod uniform;
 pub mod vertex;

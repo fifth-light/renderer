@@ -53,6 +53,5 @@ pub fn calculate_normal(
     for point_normal in &mut buffer {
         *point_normal = point_normal.normalize();
     }
-    eprintln!("buffer: {:?}", buffer);
     buffer.into_iter().map(|normal| normal.to_array()).collect()
 }

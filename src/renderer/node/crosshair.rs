@@ -15,12 +15,12 @@ use super::{
 
 #[rustfmt::skip]
 const CROSSHAIR_VERTICES: &[ColorVertex] = &[
-    ColorVertex { position: [0.0, 0.0, 0.0], color: [1.0, 0.0, 0.0, 1.0], normal: [0.0, 0.0, 0.0] },
-    ColorVertex { position: [1.0, 0.0, 0.0], color: [1.0, 0.0, 0.0, 1.0], normal: [0.0, 0.0, 0.0] },
-    ColorVertex { position: [0.0, 0.0, 0.0], color: [0.0, 1.0, 0.0, 1.0], normal: [0.0, 0.0, 0.0] },
-    ColorVertex { position: [0.0, 1.0, 0.0], color: [0.0, 1.0, 0.0, 1.0], normal: [0.0, 0.0, 0.0] },
-    ColorVertex { position: [0.0, 0.0, 0.0], color: [0.0, 0.0, 1.0, 1.0], normal: [0.0, 0.0, 0.0] },
-    ColorVertex { position: [0.0, 0.0, 1.0], color: [0.0, 0.0, 1.0, 1.0], normal: [0.0, 0.0, 0.0] },
+    ColorVertex { position: [0.0, 0.0, 0.0], color: [1.0, 0.0, 0.0, 1.0], normal: [0.0, 0.0, 0.0], tangent: [0.0, 0.0, 0.0] },
+    ColorVertex { position: [1.0, 0.0, 0.0], color: [1.0, 0.0, 0.0, 1.0], normal: [0.0, 0.0, 0.0], tangent: [0.0, 0.0, 0.0] },
+    ColorVertex { position: [0.0, 0.0, 0.0], color: [0.0, 1.0, 0.0, 1.0], normal: [0.0, 0.0, 0.0], tangent: [0.0, 0.0, 0.0] },
+    ColorVertex { position: [0.0, 1.0, 0.0], color: [0.0, 1.0, 0.0, 1.0], normal: [0.0, 0.0, 0.0], tangent: [0.0, 0.0, 0.0] },
+    ColorVertex { position: [0.0, 0.0, 0.0], color: [0.0, 0.0, 1.0, 1.0], normal: [0.0, 0.0, 0.0], tangent: [0.0, 0.0, 0.0] },
+    ColorVertex { position: [0.0, 0.0, 1.0], color: [0.0, 0.0, 1.0, 1.0], normal: [0.0, 0.0, 0.0], tangent: [0.0, 0.0, 0.0] },
 ];
 
 #[derive(Debug)]

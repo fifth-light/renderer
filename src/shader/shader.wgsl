@@ -55,28 +55,32 @@ struct ColorVertexInput {
     @location(0) position: vec3f,
     @location(1) color: vec4f,
     @location(2) normal: vec3f,
+    @location(3) tangent: vec3f,
 }
 
 struct ColorSkinVertexInput {
     @location(0) position: vec3f,
     @location(1) color: vec4f,
     @location(2) normal: vec3f,
-    @location(3) joint_index: vec4u,
-    @location(4) joint_weight: vec4f,
+    @location(3) tangent: vec3f,
+    @location(4) joint_index: vec4u,
+    @location(5) joint_weight: vec4f,
 }
 
 struct TextureVertexInput {
     @location(0) position: vec3f,
     @location(1) tex_coords: vec2f,
     @location(2) normal: vec3f,
+    @location(3) tangent: vec3f,
 }
 
 struct TextureSkinVertexInput {
     @location(0) position: vec3f,
     @location(1) tex_coords: vec2f,
     @location(2) normal: vec3f,
-    @location(3) joint_index: vec4u,
-    @location(4) joint_weight: vec4f,
+    @location(3) tangent: vec3f,
+    @location(4) joint_index: vec4u,
+    @location(5) joint_weight: vec4f,
 }
 
 struct ColorVertexOutput {
@@ -161,9 +165,10 @@ fn color_outline_vs_main(model: ColorVertexInput) -> ColorVertexOutput {
     out.color = model.color;
 
     let normal = normalize(instance.normal * model.normal);
-    let ndc_normal = normalize((camera.view_proj * vec4f(normal, 0.0)).xyz);
+    let tangent = normalize(instance.normal * model.tangent);
+    let ndc_tangent = normalize((camera.view_proj * vec4f(tangent, 0.0)).xyz);
     let outline_size = vec3f(OUTLINE_SIZE / camera.aspect, OUTLINE_SIZE, 0.0);
-    let outline_position = outline_size * ndc_normal;
+    let outline_position = outline_size * ndc_tangent;
 
     out.position = model.position;
     out.normal = normal;
@@ -179,9 +184,10 @@ fn color_outline_skin_vs_main(model: ColorSkinVertexInput) -> ColorVertexOutput 
 
     let normal_matrix = compute_skin_normal_matrix(model.joint_index, model.joint_weight);
     let normal = normalize(normal_matrix * model.normal);
-    let ndc_normal = normalize((camera.view_proj * vec4f(normal, 0.0)).xyz);
+    let tangent = normalize(normal_matrix * model.tangent);
+    let ndc_tangent = normalize((camera.view_proj * vec4f(tangent, 0.0)).xyz);
     let outline_size = vec3f(OUTLINE_SIZE / camera.aspect, OUTLINE_SIZE, 0.0);
-    let outline_position = outline_size * ndc_normal;
+    let outline_position = outline_size * ndc_tangent;
 
     let skin_matrix = compute_skin_transform_matrix(model.joint_index, model.joint_weight);
     let position = skin_matrix * vec4f(model.position, 1.0);
@@ -199,9 +205,10 @@ fn texture_outline_vs_main(model: TextureVertexInput) -> TextureVertexOutput {
     out.tex_coords = model.tex_coords;
 
     let normal = normalize(instance.normal * model.normal);
-    let ndc_normal = normalize((camera.view_proj * vec4f(normal, 0.0)).xyz);
+    let tangent = normalize(instance.normal * model.tangent);
+    let ndc_tangent = normalize((camera.view_proj * vec4f(tangent, 0.0)).xyz);
     let outline_size = vec3f(OUTLINE_SIZE / camera.aspect, OUTLINE_SIZE, 0.0);
-    let outline_position = outline_size * ndc_normal;
+    let outline_position = outline_size * ndc_tangent;
 
     out.position = model.position;
     out.normal = normal;
@@ -217,9 +224,10 @@ fn texture_outline_skin_vs_main(model: TextureSkinVertexInput) -> TextureVertexO
 
     let normal_matrix = compute_skin_normal_matrix(model.joint_index, model.joint_weight);
     let normal = normalize(normal_matrix * model.normal);
-    let ndc_normal = normalize((camera.view_proj * vec4f(normal, 0.0)).xyz);
+    let tangent = normalize(normal_matrix * model.tangent);
+    let ndc_tangent = normalize((camera.view_proj * vec4f(tangent, 0.0)).xyz);
     let outline_size = vec3f(OUTLINE_SIZE / camera.aspect, OUTLINE_SIZE, 0.0);
-    let outline_position = outline_size * ndc_normal;
+    let outline_position = outline_size * ndc_tangent;
 
     let skin_matrix = compute_skin_transform_matrix(model.joint_index, model.joint_weight);
     let position = skin_matrix * vec4f(model.position, 1.0);
@@ -308,7 +316,7 @@ fn texture_fs_main(in: TextureVertexOutput) -> @location(0) vec4f {
 }
 
 fn outline_color_process(color: vec3f) -> vec3f {
-    return color * 0.1;
+    return color * 0.05;
 }
 
 @fragment

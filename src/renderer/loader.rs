@@ -46,6 +46,7 @@ use super::{
         RenderNode,
     },
     pipeline::ShaderAlphaMode,
+    tangent::calculate_tangent,
     vertex::{ColorSkinVertex, TextureSkinVertex},
     RendererBindGroupLayout,
 };
@@ -96,11 +97,11 @@ impl<'a> RendererAssetLoader<'a> {
         queue: &Queue,
         primitive: PrimitiveAsset,
     ) -> PrimitiveNode {
+        let positions = primitive.positions;
+        let tangent = calculate_tangent(primitive.mode, &positions, primitive.indices.as_deref());
         let indices = primitive
             .indices
             .map(|indices| IndexBuffer::new(device, &indices, None));
-
-        let positions = primitive.positions;
         let normals = primitive.normals;
         let vertex_color = primitive.vertex_color;
         let tex_coords = primitive.tex_coords;
@@ -127,14 +128,19 @@ impl<'a> RendererAssetLoader<'a> {
                 let vertices: Vec<_> = positions
                     .into_iter()
                     .zip(normals)
+                    .zip(tangent)
                     .zip(tex_coords)
                     .zip(&skin.joints)
                     .zip(&skin.weights)
                     .map(
-                        |((((position, normal), tex_coords), joint_index), joint_weight)| {
+                        |(
+                            ((((position, normal), tangent), tex_coords), joint_index),
+                            joint_weight,
+                        )| {
                             TextureSkinVertex {
                                 position,
                                 normal,
+                                tangent,
                                 tex_coords: *tex_coords,
                                 joint_index: *joint_index,
                                 joint_weight: *joint_weight,
@@ -157,14 +163,16 @@ impl<'a> RendererAssetLoader<'a> {
                             .chain(iter::repeat(&[1.0, 1.0, 1.0, 1.0])),
                     )
                     .zip(normals)
+                    .zip(tangent)
                     .zip(&skin.joints)
                     .zip(&skin.weights)
                     .map(
-                        |((((position, color), normal), joint_index), joint_weight)| {
+                        |(((((position, color), normal), tangent), joint_index), joint_weight)| {
                             ColorSkinVertex {
                                 position,
                                 color: *color,
                                 normal,
+                                tangent,
                                 joint_index: *joint_index,
                                 joint_weight: *joint_weight,
                             }
@@ -181,14 +189,16 @@ impl<'a> RendererAssetLoader<'a> {
                     .into_iter()
                     .zip(iter::repeat(&color))
                     .zip(normals)
+                    .zip(tangent)
                     .zip(&skin.joints)
                     .zip(&skin.weights)
                     .map(
-                        |((((position, color), normal), joint_index), joint_weight)| {
+                        |(((((position, color), normal), tangent), joint_index), joint_weight)| {
                             ColorSkinVertex {
                                 position,
                                 color: *color,
                                 normal,
+                                tangent,
                                 joint_index: *joint_index,
                                 joint_weight: *joint_weight,
                             }
@@ -204,11 +214,15 @@ impl<'a> RendererAssetLoader<'a> {
                     .into_iter()
                     .zip(tex_coords)
                     .zip(normals)
-                    .map(|((position, tex_coords), normal)| TextureVertex {
-                        position,
-                        tex_coords: *tex_coords,
-                        normal,
-                    })
+                    .zip(tangent)
+                    .map(
+                        |(((position, tex_coords), normal), tangent)| TextureVertex {
+                            position,
+                            tex_coords: *tex_coords,
+                            normal,
+                            tangent,
+                        },
+                    )
                     .collect();
                 let bind_group = self.load_texture(device, queue, &diffuse_texture);
                 PrimitiveNodeContent::Texture {
@@ -225,10 +239,12 @@ impl<'a> RendererAssetLoader<'a> {
                             .chain(iter::repeat(&[1.0, 1.0, 1.0, 1.0])),
                     )
                     .zip(normals)
-                    .map(|((position, color), normal)| ColorVertex {
+                    .zip(tangent)
+                    .map(|(((position, color), normal), tangent)| ColorVertex {
                         position,
                         color: *color,
                         normal,
+                        tangent,
                     })
                     .collect();
                 PrimitiveNodeContent::Color {
@@ -240,10 +256,12 @@ impl<'a> RendererAssetLoader<'a> {
                 let vertices: Vec<_> = positions
                     .into_iter()
                     .zip(normals)
-                    .map(|(position, normal)| ColorVertex {
+                    .zip(tangent)
+                    .map(|((position, normal), tangent)| ColorVertex {
                         position,
                         color,
                         normal,
+                        tangent,
                     })
                     .collect();
                 PrimitiveNodeContent::Color {

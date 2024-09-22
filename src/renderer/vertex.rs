@@ -22,11 +22,12 @@ pub trait Vertex: Copy + Clone + Pod + Zeroable {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug, Pod, Zeroable)]
+#[derive(Copy, Clone, Debug, Default, Pod, Zeroable)]
 pub struct ColorVertex {
     pub position: [f32; 3],
     pub color: [f32; 4],
     pub normal: [f32; 3],
+    pub tangent: [f32; 3],
 }
 
 impl Vertex for ColorVertex {
@@ -34,6 +35,7 @@ impl Vertex for ColorVertex {
         0 => Float32x3,
         1 => Float32x4,
         2 => Float32x3,
+        3 => Float32x3,
     ];
 }
 
@@ -43,6 +45,7 @@ pub struct TextureVertex {
     pub position: [f32; 3],
     pub tex_coords: [f32; 2],
     pub normal: [f32; 3],
+    pub tangent: [f32; 3],
 }
 
 impl Vertex for TextureVertex {
@@ -50,6 +53,7 @@ impl Vertex for TextureVertex {
         0 => Float32x3,
         1 => Float32x2,
         2 => Float32x3,
+        3 => Float32x3,
     ];
 }
 
@@ -59,6 +63,7 @@ pub struct ColorSkinVertex {
     pub position: [f32; 3],
     pub color: [f32; 4],
     pub normal: [f32; 3],
+    pub tangent: [f32; 3],
     pub joint_index: [u16; 4],
     pub joint_weight: [f32; 4],
 }
@@ -68,8 +73,9 @@ impl Vertex for ColorSkinVertex {
         0 => Float32x3,
         1 => Float32x4,
         2 => Float32x3,
-        3 => Uint16x4,
-        4 => Float32x4
+        3 => Float32x3,
+        4 => Uint16x4,
+        5 => Float32x4
     ];
 }
 
@@ -79,6 +85,7 @@ pub struct TextureSkinVertex {
     pub position: [f32; 3],
     pub tex_coords: [f32; 2],
     pub normal: [f32; 3],
+    pub tangent: [f32; 3],
     pub joint_index: [u16; 4],
     pub joint_weight: [f32; 4],
 }
@@ -88,8 +95,9 @@ impl Vertex for TextureSkinVertex {
         0 => Float32x3,
         1 => Float32x2,
         2 => Float32x3,
-        3 => Uint16x4,
-        4 => Float32x4
+        3 => Float32x3,
+        4 => Uint16x4,
+        5 => Float32x4
     ];
 }
 
