@@ -3,7 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const FRAME_TIME_SAMPLES: usize = 24;
+pub const FRAME_TIME_SAMPLES: usize = 60;
 
 #[derive(Debug, Default)]
 pub struct PerformanceTracker {
@@ -12,6 +12,10 @@ pub struct PerformanceTracker {
 }
 
 impl PerformanceTracker {
+    pub fn frame_time(&self) -> &VecDeque<Duration> {
+        &self.frame_time
+    }
+
     pub fn last_frame_time(&self) -> Option<&Duration> {
         self.frame_time.front()
     }
