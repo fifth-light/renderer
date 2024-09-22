@@ -219,7 +219,7 @@ impl<'a> State<'a> {
             self.renderer.state.bind_group_layout(),
             &mut pipelines,
             LightParam::Parallel {
-                direction: Vec3::new(2.0, 3.0, 2.0),
+                direction: Vec3::new(0.0, 3.0, 0.0),
                 color: Vec3::new(1.0, 1.0, 0.8),
                 strength: 1.3,
             },

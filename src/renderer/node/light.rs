@@ -112,6 +112,7 @@ impl LightNode {
                 primitive_topology: PrimitiveTopology::TriangleList,
                 alpha_mode: ShaderAlphaMode::Opaque,
             },
+            false,
         );
         let node = if let LightParam::Point { .. } = param {
             if show_box {
@@ -119,6 +120,7 @@ impl LightNode {
                     Some(indices),
                     PrimitiveNodeContent::Color { buffer },
                     pipeline,
+                    None,
                 ))
             } else {
                 None

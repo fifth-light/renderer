@@ -32,6 +32,7 @@ pub struct RenderPipelineItemDescriptor<'a> {
     pub primitive_topology: PrimitiveTopology,
     pub shader_type: ShaderType,
     pub alpha_mode: ShaderAlphaMode,
+    pub outline: bool,
 }
 
 impl RenderPipelineItem {
@@ -127,7 +128,11 @@ impl RenderPipelineItem {
                 topology: descriptor.primitive_topology,
                 strip_index_format: None,
                 front_face: FrontFace::Ccw,
-                cull_mode: Some(Face::Back),
+                cull_mode: Some(if descriptor.outline {
+                    Face::Front
+                } else {
+                    Face::Back
+                }),
                 polygon_mode: PolygonMode::Fill,
                 unclipped_depth: false,
                 conservative: false,
@@ -176,7 +181,7 @@ impl RenderPipelineItem {
 pub struct Pipelines {
     shader_module: ShaderModule,
     target_texture_format: TextureFormat,
-    items: HashMap<PipelineIdentifier, Arc<RenderPipelineItem>>,
+    items: HashMap<(PipelineIdentifier, bool), Arc<RenderPipelineItem>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -218,13 +223,19 @@ impl Pipelines {
         device: &Device,
         bind_group_layouts: &RendererBindGroupLayout,
         identifier: PipelineIdentifier,
+        outline: bool,
     ) -> RenderPipelineItem {
-        let (vertex_entry_name, fragment_entry_name) = match identifier.shader {
-            ShaderType::Light => ("color_vs_main", "light_fs_main"),
-            ShaderType::Color => ("color_vs_main", "color_fs_main"),
-            ShaderType::Texture => ("texture_vs_main", "texture_fs_main"),
-            ShaderType::ColorSkin => ("color_skin_vs_main", "color_fs_main"),
-            ShaderType::TextureSkin => ("texture_skin_vs_main", "texture_fs_main"),
+        #[rustfmt::skip]
+        let (vertex_entry_name, fragment_entry_name) = match (identifier.shader, outline) {
+            (ShaderType::Light, _) => ("color_vs_main", "light_fs_main"),
+            (ShaderType::Color, false) => ("color_vs_main", "color_fs_main"),
+            (ShaderType::Texture, false) => ("texture_vs_main", "texture_fs_main"),
+            (ShaderType::ColorSkin, false) => ("color_skin_vs_main", "color_fs_main"),
+            (ShaderType::TextureSkin, false) => ("texture_skin_vs_main", "texture_fs_main"),
+            (ShaderType::Color, true) => ("color_outline_vs_main", "color_outline_fs_main"),
+            (ShaderType::Texture, true) => ("texture_outline_vs_main", "texture_outline_fs_main"),
+            (ShaderType::ColorSkin, true) => ("color_outline_skin_vs_main", "color_outline_fs_main"),
+            (ShaderType::TextureSkin, true) => ("texture_outline_skin_vs_main", "texture_outline_fs_main"),
         };
         RenderPipelineItem::new(
             device,
@@ -238,6 +249,7 @@ impl Pipelines {
                 primitive_topology: identifier.primitive_topology,
                 shader_type: identifier.shader,
                 alpha_mode: identifier.alpha_mode,
+                outline,
             },
         )
     }
@@ -247,12 +259,13 @@ impl Pipelines {
         device: &Device,
         bind_group_layouts: &RendererBindGroupLayout,
         identifier: PipelineIdentifier,
+        outline: bool,
     ) -> Arc<RenderPipelineItem> {
-        if let Some(item) = self.items.get(&identifier) {
+        if let Some(item) = self.items.get(&(identifier, outline)) {
             return item.clone();
         }
-        let item = Arc::new(self.new_pipeline(device, bind_group_layouts, identifier));
-        self.items.insert(identifier, item.clone());
+        let item = Arc::new(self.new_pipeline(device, bind_group_layouts, identifier, outline));
+        self.items.insert((identifier, outline), item.clone());
         item
     }
 }

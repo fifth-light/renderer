@@ -1,5 +1,4 @@
 use bytemuck::{cast_slice, Pod, Zeroable};
-use glam::{Mat4, Vec3};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     Buffer, BufferUsages, Device, Queue,
@@ -12,7 +11,7 @@ use crate::renderer::camera::Camera;
 struct CameraUniform {
     pub view_proj: [[f32; 4]; 4],
     pub view_pos: [f32; 3],
-    padding: [u8; 4],
+    pub aspect: f32,
 }
 
 pub struct CameraUniformBuffer {
@@ -25,7 +24,7 @@ impl CameraUniformBuffer {
         let uniform = CameraUniform {
             view_proj: camera.matrix(default_aspect).to_cols_array_2d(),
             view_pos: camera.view.eye.to_array(),
-            padding: [0; 4],
+            aspect: default_aspect,
         };
         let buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Camera Buffer"),
@@ -35,9 +34,12 @@ impl CameraUniformBuffer {
         Self { buffer, uniform }
     }
 
-    pub fn update_view(&mut self, view_proj: Mat4, view_pos: Vec3) {
+    pub fn update_view(&mut self, camera: &Camera, default_aspect: f32) {
+        let view_proj = camera.matrix(default_aspect);
+        let view_pos = camera.view.eye;
         self.uniform.view_proj = view_proj.to_cols_array_2d();
         self.uniform.view_pos = view_pos.to_array();
+        self.uniform.aspect = camera.aspect().unwrap_or(default_aspect);
     }
 
     pub fn update(&self, queue: &Queue) {

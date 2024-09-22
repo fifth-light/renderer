@@ -273,10 +273,13 @@ impl<'a> RendererAssetLoader<'a> {
                 MaterialAlphaMode::Blend => ShaderAlphaMode::Blend,
             },
         };
-        let pipeline = self
-            .pipelines
-            .get(device, self.bind_group_layouts, pipeline_identifier);
-        PrimitiveNode::new(indices, content, pipeline)
+        let pipeline =
+            self.pipelines
+                .get(device, self.bind_group_layouts, pipeline_identifier, false);
+        let outline_pipeline =
+            self.pipelines
+                .get(device, self.bind_group_layouts, pipeline_identifier, true);
+        PrimitiveNode::new(indices, content, pipeline, Some(outline_pipeline))
     }
 
     pub fn load_mesh(&mut self, device: &Device, queue: &Queue, mesh: MeshAsset) -> RenderNodeItem {

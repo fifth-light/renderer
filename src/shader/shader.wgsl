@@ -1,6 +1,7 @@
 struct CameraUniform {
     view_proj: mat4x4f,
     view_pos: vec3f,
+    aspect: f32,
 }
 const MAX_POINT_LIGHTS = 128;
 const MAX_PARALLEL_LIGHTS = 16;
@@ -152,6 +153,84 @@ fn texture_skin_vs_main(model: TextureSkinVertexInput) -> TextureVertexOutput {
     return out;
 }
 
+const OUTLINE_SIZE = 0.003;
+
+@vertex
+fn color_outline_vs_main(model: ColorVertexInput) -> ColorVertexOutput {
+    var out: ColorVertexOutput;
+    out.color = model.color;
+
+    let normal = normalize(instance.normal * model.normal);
+    let ndc_normal = normalize((camera.view_proj * vec4f(normal, 0.0)).xyz);
+    let outline_size = vec3f(OUTLINE_SIZE / camera.aspect, OUTLINE_SIZE, 0.0);
+    let outline_position = outline_size * ndc_normal;
+
+    out.position = model.position;
+    out.normal = normal;
+    out.clip_position = camera.view_proj * instance.transform * vec4f(model.position, 1.0) + vec4f(outline_position, 0.0);
+
+    return out;
+}
+
+@vertex
+fn color_outline_skin_vs_main(model: ColorSkinVertexInput) -> ColorVertexOutput {
+    var out: ColorVertexOutput;
+    out.color = model.color;
+
+    let normal_matrix = compute_skin_normal_matrix(model.joint_index, model.joint_weight);
+    let normal = normalize(normal_matrix * model.normal);
+    let ndc_normal = normalize((camera.view_proj * vec4f(normal, 0.0)).xyz);
+    let outline_size = vec3f(OUTLINE_SIZE / camera.aspect, OUTLINE_SIZE, 0.0);
+    let outline_position = outline_size * ndc_normal;
+
+    let skin_matrix = compute_skin_transform_matrix(model.joint_index, model.joint_weight);
+    let position = skin_matrix * vec4f(model.position, 1.0);
+
+    out.position = position.xyz;
+    out.normal = normal;
+    out.clip_position = camera.view_proj * position + vec4f(outline_position, 0.0);
+
+    return out;
+}
+
+@vertex
+fn texture_outline_vs_main(model: TextureVertexInput) -> TextureVertexOutput {
+    var out: TextureVertexOutput;
+    out.tex_coords = model.tex_coords;
+
+    let normal = normalize(instance.normal * model.normal);
+    let ndc_normal = normalize((camera.view_proj * vec4f(normal, 0.0)).xyz);
+    let outline_size = vec3f(OUTLINE_SIZE / camera.aspect, OUTLINE_SIZE, 0.0);
+    let outline_position = outline_size * ndc_normal;
+
+    out.position = model.position;
+    out.normal = normal;
+    out.clip_position = camera.view_proj * instance.transform * vec4f(model.position, 1.0) + vec4f(outline_position, 0.0);
+
+    return out;
+}
+
+@vertex
+fn texture_outline_skin_vs_main(model: TextureSkinVertexInput) -> TextureVertexOutput {
+    var out: TextureVertexOutput;
+    out.tex_coords = model.tex_coords;
+
+    let normal_matrix = compute_skin_normal_matrix(model.joint_index, model.joint_weight);
+    let normal = normalize(normal_matrix * model.normal);
+    let ndc_normal = normalize((camera.view_proj * vec4f(normal, 0.0)).xyz);
+    let outline_size = vec3f(OUTLINE_SIZE / camera.aspect, OUTLINE_SIZE, 0.0);
+    let outline_position = outline_size * ndc_normal;
+
+    let skin_matrix = compute_skin_transform_matrix(model.joint_index, model.joint_weight);
+    let position = skin_matrix * vec4f(model.position, 1.0);
+
+    out.position = position.xyz;
+    out.normal = normal;
+    out.clip_position = camera.view_proj * position + vec4f(outline_position, 0.0);
+
+    return out;
+}
+
 @fragment
 fn light_fs_main(in: ColorVertexOutput) -> @location(0) vec4f {
     return in.color;
@@ -193,7 +272,7 @@ fn light_process(in_color: vec4f, normal: vec3f, position: vec3f) -> vec4f {
     let alpha = in_color.a;
     let color = in_color.rgb;
 
-    var result: vec3f = vec3(0.0, 0.0, 0.0);
+    var result: vec3f = vec3f(0.0, 0.0, 0.0);
 
     // Ambient
     let ambient = AMBIENT_STRENGTH * color;
@@ -211,7 +290,7 @@ fn light_process(in_color: vec4f, normal: vec3f, position: vec3f) -> vec4f {
         result += parallel_light_process(color, normal, position, parallel);
     }
 
-    return vec4(result, alpha);
+    return vec4f(result, alpha);
 }
 
 @fragment
@@ -226,4 +305,22 @@ fn texture_fs_main(in: TextureVertexOutput) -> @location(0) vec4f {
         discard;
     }
     return light_process(color, in.normal, in.position);
+}
+
+fn outline_color_process(color: vec3f) -> vec3f {
+    return color * 0.1;
+}
+
+@fragment
+fn color_outline_fs_main(in: ColorVertexOutput) -> @location(0) vec4f {
+    return vec4(outline_color_process(in.color.rgb), in.color.a);
+}
+
+@fragment
+fn texture_outline_fs_main(in: TextureVertexOutput) -> @location(0) vec4f {
+    let in_color = textureSample(diffuse_texture, diffuse_sampler, in.tex_coords);
+    if in_color.a == 0.0 {
+        discard;
+    }
+    return vec4(outline_color_process(in_color.rgb), in_color.a);
 }

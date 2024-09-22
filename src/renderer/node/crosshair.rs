@@ -44,8 +44,9 @@ impl CrosshairNode {
                 primitive_topology: PrimitiveTopology::LineList,
                 alpha_mode: ShaderAlphaMode::Opaque,
             },
+            false,
         );
-        let node = PrimitiveNode::new(None, PrimitiveNodeContent::Color { buffer }, pipeline);
+        let node = PrimitiveNode::new(None, PrimitiveNodeContent::Color { buffer }, pipeline, None);
         CrosshairNode {
             id: new_node_id(),
             node,

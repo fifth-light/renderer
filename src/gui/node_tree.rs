@@ -28,11 +28,11 @@ pub fn primitive_node(ui: &mut Ui, node: &PrimitiveNode) {
     CollapsingHeader::new(format!("Primitive #{}", node.id()))
         .id_salt(node.id())
         .show(ui, |ui| {
-            ui.label(match node.indices.as_ref() {
+            ui.label(match node.indices().as_ref() {
                 Some(indices) => format!("Indices: {}", indices.indices()),
                 None => "indices: None".to_string(),
             });
-            ui.label(match &node.content {
+            ui.label(match &node.content() {
                 PrimitiveNodeContent::Color { buffer } => {
                     format!("Content: color (vertices: {})", buffer.vertices)
                 }

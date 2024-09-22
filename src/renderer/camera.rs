@@ -27,6 +27,13 @@ impl CameraProjection {
         }
     }
 
+    pub fn aspect(&self) -> Option<f32> {
+        match self {
+            CameraProjection::Perspective { aspect, .. } => *aspect,
+            CameraProjection::Orthographic { xmag, ymag, .. } => Some(xmag / ymag),
+        }
+    }
+
     pub fn matrix(&self, default_aspect: f32) -> Mat4 {
         match self {
             CameraProjection::Perspective {
@@ -131,8 +138,12 @@ impl Camera {
         self.projection.update_aspect(new_aspect);
     }
 
+    pub fn aspect(&self) -> Option<f32> {
+        self.projection.aspect()
+    }
+
     pub fn update_uniform(&self, buffer: &mut CameraUniformBuffer, default_aspect: f32) {
-        buffer.update_view(self.matrix(default_aspect), self.view.eye);
+        buffer.update_view(self, default_aspect);
     }
 
     pub fn matrix(&self, default_aspect: f32) -> Mat4 {

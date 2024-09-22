@@ -33,9 +33,10 @@ pub enum PrimitiveNodeContent {
 #[derive(Debug)]
 pub struct PrimitiveNode {
     id: usize,
-    pub indices: Option<IndexBuffer>,
-    pub content: PrimitiveNodeContent,
-    pub pipeline: Arc<RenderPipelineItem>,
+    indices: Option<IndexBuffer>,
+    content: PrimitiveNodeContent,
+    pipeline: Arc<RenderPipelineItem>,
+    outline_pipeline: Option<Arc<RenderPipelineItem>>,
 }
 
 impl PrimitiveNode {
@@ -43,13 +44,23 @@ impl PrimitiveNode {
         indices: Option<IndexBuffer>,
         content: PrimitiveNodeContent,
         pipeline: Arc<RenderPipelineItem>,
+        outline_pipeline: Option<Arc<RenderPipelineItem>>,
     ) -> Self {
         Self {
             id: new_node_id(),
             indices,
             content,
             pipeline,
+            outline_pipeline,
         }
+    }
+
+    pub fn indices(&self) -> Option<&IndexBuffer> {
+        self.indices.as_ref()
+    }
+
+    pub fn content(&self) -> &PrimitiveNodeContent {
+        &self.content
     }
 }
 
@@ -59,9 +70,6 @@ impl RenderNode for PrimitiveNode {
     }
 
     fn draw(&self, _renderer_state: &RendererState, ongoing_state: &mut OngoingRenderState) {
-        ongoing_state
-            .render_pass
-            .set_pipeline(self.pipeline.render_pipeline());
         let vertex = match &self.content {
             PrimitiveNodeContent::Color { buffer } => {
                 assert!(matches!(
@@ -103,10 +111,24 @@ impl RenderNode for PrimitiveNode {
             }
         };
 
+        ongoing_state
+            .render_pass
+            .set_pipeline(self.pipeline.render_pipeline());
         if let Some(indices) = &self.indices {
             vertex.draw_with_indexes(indices, &mut ongoing_state.render_pass);
         } else {
             vertex.draw(&mut ongoing_state.render_pass);
+        }
+
+        if let Some(outline_pipeline) = &self.outline_pipeline {
+            ongoing_state
+                .render_pass
+                .set_pipeline(outline_pipeline.render_pipeline());
+            if let Some(indices) = &self.indices {
+                vertex.draw_with_indexes(indices, &mut ongoing_state.render_pass);
+            } else {
+                vertex.draw(&mut ongoing_state.render_pass);
+            }
         }
     }
 }
