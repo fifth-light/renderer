@@ -32,10 +32,37 @@ struct ParallelLightData {
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
+pub struct LightParam {
+    pub start_strength: f32,
+    pub stop_strength: f32,
+    pub max_strength: f32,
+    pub border_start_strength: f32,
+    pub border_stop_strength: f32,
+    pub border_max_strength: f32,
+    pub ambient_strength: f32,
+}
+
+impl Default for LightParam {
+    fn default() -> Self {
+        Self {
+            start_strength: 0.30,
+            stop_strength: 0.60,
+            max_strength: 0.20,
+            border_start_strength: 0.40,
+            border_stop_strength: 0.80,
+            border_max_strength: 0.20,
+            ambient_strength: 0.50,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
 pub struct LightUniform {
-    pub point_length: u32,    // 4 byte
-    pub parallel_length: u32, // 4 byte
-    padding: [u8; 8],         // 8 byte
+    point_length: u32,       // 4 byte
+    parallel_length: u32,    // 4 byte
+    light_param: LightParam, // 28 byte
+    padding: [u8; 12],
     point: [PointLightItem; MAX_POINT_LIGHTS],
     parallel: [ParallelLightData; MAX_PARALLEL_LIGHTS],
 }
@@ -48,7 +75,7 @@ pub struct LightUniformBuffer {
 }
 
 impl LightUniformBuffer {
-    pub fn new(device: &Device, items: Vec<LightData>) -> Self {
+    pub fn new(device: &Device, items: Vec<LightData>, light_param: LightParam) -> Self {
         let mut point_length: u32 = 0;
         let mut parallel_length: u32 = 0;
         let mut point: [PointLightItem; MAX_POINT_LIGHTS] = [Default::default(); MAX_POINT_LIGHTS];
@@ -87,7 +114,8 @@ impl LightUniformBuffer {
         let uniform = LightUniform {
             point_length,
             parallel_length,
-            padding: [0; 8],
+            light_param,
+            padding: [0; 12],
             point,
             parallel,
         };
@@ -101,6 +129,14 @@ impl LightUniformBuffer {
             uniform,
             items,
         }
+    }
+
+    pub fn set_param(&mut self, param: LightParam) {
+        self.uniform.light_param = param;
+    }
+
+    pub fn param(&self) -> &LightParam {
+        &self.uniform.light_param
     }
 
     pub fn update(&mut self, queue: &Queue) {

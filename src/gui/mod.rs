@@ -3,15 +3,20 @@ use std::{path::PathBuf, sync::mpsc::Sender, time::Instant};
 use animation::animation_items;
 use egui::Context;
 use error::error_dialog;
+use light::light_param;
 use load::model_load;
 use node_tree::node_tree;
 use perf::perf_info;
 
-use crate::{perf::PerformanceTracker, renderer::Renderer};
+use crate::{
+    perf::PerformanceTracker,
+    renderer::{uniform::light::LightParam, Renderer},
+};
 
 mod animation;
 mod context;
 mod error;
+mod light;
 mod load;
 mod matrix;
 mod node_tree;
@@ -37,6 +42,7 @@ pub enum GuiAction {
     StartAnimationRepeat(usize),
     StartAnimationLoop(usize),
     EnableCamera(Option<usize>),
+    SetLightParam(LightParam),
 }
 
 pub fn gui_main(
@@ -51,6 +57,7 @@ pub fn gui_main(
     perf_info(ctx, perf_tracker);
     model_load(ctx, gui_actions_tx);
     animation_items(ctx, time, renderer.animation_groups(), gui_actions_tx);
+    light_param(ctx, &renderer.state, gui_actions_tx);
 
     let mut remove_index = Vec::new();
     for (index, error) in state.errors.iter().enumerate() {

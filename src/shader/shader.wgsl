@@ -1,6 +1,7 @@
 struct CameraUniform {
     view_proj: mat4x4f,
     view_pos: vec3f,
+    view_direction: vec3f,
     aspect: f32,
 }
 const MAX_POINT_LIGHTS = 128;
@@ -20,8 +21,15 @@ struct ParallelLightData {
 //                       pad to 32
 }
 struct LightUniform {
-    point_length: u32, // 4
-    parallel_length: u32, // 4 pad to 12
+    point_length: u32, //          4
+    parallel_length: u32, //       8
+    start_strength: f32, //        12
+    stop_strength: f32, //         16
+    max_strength: f32, //          20
+    border_start_strength: f32, // 24
+    border_stop_strength: f32, //  28
+    border_max_strength: f32, //   32
+    ambient_strength: f32, //      36
     point: array<PointLightData, MAX_POINT_LIGHTS>, // 6160
     parallel: array<ParallelLightData, MAX_PARALLEL_LIGHTS>, // 6672
 }
@@ -88,6 +96,7 @@ struct ColorVertexOutput {
     @location(0) position: vec3f,
     @location(1) color: vec4f,
     @location(2) normal: vec3f,
+    @location(3) tangent: vec3f,
 }
 
 struct TextureVertexOutput {
@@ -95,6 +104,7 @@ struct TextureVertexOutput {
     @location(0) position: vec3f,
     @location(1) tex_coords: vec2f,
     @location(2) normal: vec3f,
+    @location(3) tangent: vec3f,
 }
 
 fn compute_skin_transform_matrix(joint_index: vec4u, joint_weight: vec4f) -> mat4x4f {
@@ -120,6 +130,7 @@ fn color_vs_main(model: ColorVertexInput) -> ColorVertexOutput {
     out.position = model.position;
     out.clip_position = camera.view_proj * instance.transform * vec4f(model.position, 1.0);
     out.normal = instance.normal * model.normal;
+    out.tangent = instance.normal * model.tangent;
     return out;
 }
 
@@ -132,6 +143,7 @@ fn color_skin_vs_main(model: ColorSkinVertexInput) -> ColorVertexOutput {
     out.clip_position = camera.view_proj * skin_matrix * vec4f(model.position, 1.0);
     let normal_matrix = compute_skin_normal_matrix(model.joint_index, model.joint_weight);
     out.normal = normal_matrix * model.normal;
+    out.tangent = normal_matrix * model.tangent;
     return out;
 }
 
@@ -142,6 +154,7 @@ fn texture_vs_main(model: TextureVertexInput) -> TextureVertexOutput {
     out.position = model.position;
     out.clip_position = camera.view_proj * instance.transform * vec4f(model.position, 1.0);
     out.normal = instance.normal * model.normal;
+    out.tangent = instance.normal * model.tangent;
     return out;
 }
 
@@ -154,6 +167,7 @@ fn texture_skin_vs_main(model: TextureSkinVertexInput) -> TextureVertexOutput {
     out.clip_position = camera.view_proj * skin_matrix * vec4f(model.position, 1.0);
     let normal_matrix = compute_skin_normal_matrix(model.joint_index, model.joint_weight);
     out.normal = normal_matrix * model.normal;
+    out.tangent = normal_matrix * model.tangent;
     return out;
 }
 
@@ -244,11 +258,8 @@ fn light_fs_main(in: ColorVertexOutput) -> @location(0) vec4f {
     return in.color;
 }
 
-const START_STRENGTH = 0.50;
-const STOP_STRENGTH = 0.55;
-const MAX_STRENGTH = 0.7;
 fn strength_map(strength: f32) -> f32 {
-    return smoothstep(START_STRENGTH, STOP_STRENGTH, strength) * MAX_STRENGTH;
+    return smoothstep(light.start_strength, light.stop_strength, strength) * light.max_strength;
 }
 
 fn point_light_process(in_color: vec3f, normal: vec3f, position: vec3f, point: PointLightData) -> vec3f {
@@ -275,15 +286,20 @@ fn parallel_light_process(in_color: vec3f, normal: vec3f, position: vec3f, paral
     return diffuse * in_color * parallel.strength;
 }
 
-const AMBIENT_STRENGTH = 0.1;
-fn light_process(in_color: vec4f, normal: vec3f, position: vec3f) -> vec4f {
+fn border_light_process(in_color: vec3f, tangent: vec3f) -> vec3f {
+    let direction = clamp(dot(tangent, -camera.view_direction), 0.0, 1.0);
+    let border_strength = smoothstep(light.border_start_strength, light.border_stop_strength, 1.0 - direction);
+    return light.border_max_strength * border_strength * in_color;
+}
+
+fn light_process(in_color: vec4f, normal: vec3f, tangent: vec3f, position: vec3f) -> vec4f {
     let alpha = in_color.a;
     let color = in_color.rgb;
 
     var result: vec3f = vec3f(0.0, 0.0, 0.0);
 
     // Ambient
-    let ambient = AMBIENT_STRENGTH * color;
+    let ambient = light.ambient_strength * color;
     result += ambient;
 
     // Point light
@@ -298,12 +314,15 @@ fn light_process(in_color: vec4f, normal: vec3f, position: vec3f) -> vec4f {
         result += parallel_light_process(color, normal, position, parallel);
     }
 
+    // Border light
+    result += border_light_process(color, tangent);
+
     return vec4f(result, alpha);
 }
 
 @fragment
 fn color_fs_main(in: ColorVertexOutput) -> @location(0) vec4f {
-    return light_process(in.color, in.normal, in.position);
+    return light_process(in.color, in.normal, in.tangent, in.position);
 }
 
 @fragment
@@ -312,7 +331,7 @@ fn texture_fs_main(in: TextureVertexOutput) -> @location(0) vec4f {
     if color.a == 0.0 {
         discard;
     }
-    return light_process(color, in.normal, in.position);
+    return light_process(color, in.normal, in.tangent, in.position);
 }
 
 fn outline_color_process(color: vec3f) -> vec3f {

@@ -1,11 +1,14 @@
 use egui::{Context, ViewportId};
 use egui_wgpu::{Renderer as EguiRenderer, ScreenDescriptor};
 use egui_winit::State as EguiWinitState;
-use glam::Vec3;
+use glam::{EulerRot, Quat, Vec3};
 use log::{error, info};
 use pollster::FutureExt;
 use renderer::{
-    asset::loader::{self, obj::ObjLoader},
+    asset::{
+        loader::{self, obj::ObjLoader},
+        node::DecomposedTransform,
+    },
     gui::{gui_main, GuiAction, GuiState},
     perf::PerformanceTracker,
     renderer::{
@@ -24,6 +27,7 @@ use renderer::{
 };
 use std::{
     cmp::Ordering,
+    f32::consts::PI,
     path::PathBuf,
     sync::{mpsc, Arc},
     time::Instant,
@@ -195,7 +199,21 @@ impl<'a> State<'a> {
             Some(path.to_string_lossy().to_string()),
         );
         let animations = asset_loader.load_animations(animations);
-        self.renderer.add_node(scene_group);
+
+        if path.to_string_lossy().contains("aris") {
+            let transform = TransformNode::from_decomposed_transform(
+                DecomposedTransform {
+                    rotation: Quat::from_euler(EulerRot::XYZ, PI / 2.0, 0.0, 0.0),
+                    ..Default::default()
+                },
+                scene_group,
+            );
+            self.renderer
+                .add_node(RenderNodeItem::Transform(Box::new(transform)));
+        } else {
+            self.renderer.add_node(scene_group);
+        }
+
         for animation in animations {
             self.renderer.add_animation_group(animation);
         }
@@ -219,7 +237,7 @@ impl<'a> State<'a> {
             self.renderer.state.bind_group_layout(),
             &mut pipelines,
             LightParam::Parallel {
-                direction: Vec3::new(0.0, 3.0, 0.0),
+                direction: Vec3::new(2.0, 3.0, 2.0),
                 color: Vec3::new(1.0, 1.0, 0.8),
                 strength: 1.3,
             },
@@ -282,6 +300,9 @@ impl<'a> State<'a> {
                 }
                 GuiAction::EnableCamera(id) => {
                     self.renderer.state.set_enabled_camera(id);
+                }
+                GuiAction::SetLightParam(param) => {
+                    self.renderer.state.set_light_param(param);
                 }
             }
         }

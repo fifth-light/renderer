@@ -9,7 +9,9 @@ use log::warn;
 use node::{group::GroupNode, light::LightData, RenderNode, RenderNodeItem};
 use texture::TextureItem;
 use uniform::{
-    camera::CameraUniformBuffer, light::LightUniformBuffer, transform::InstanceUniformBuffer,
+    camera::CameraUniformBuffer,
+    light::{LightParam, LightUniformBuffer},
+    transform::InstanceUniformBuffer,
 };
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
@@ -269,7 +271,7 @@ impl RendererState {
         let view_aspect = size.width as f32 / size.height as f32;
         let camera = Camera::default();
         let camera_buffer = CameraUniformBuffer::new(device, &camera, view_aspect);
-        let light_uniform = LightUniformBuffer::new(device, vec![]);
+        let light_uniform = LightUniformBuffer::new(device, vec![], LightParam::default());
         let default_instance_buffer = InstanceUniformBuffer::new(device, Mat4::IDENTITY);
 
         let depth_texture = DepthTexture::new(device, (size.width, size.height));
@@ -338,6 +340,14 @@ impl RendererState {
 
     pub fn set_enabled_camera_data(&mut self, camera: Camera) {
         self.enabled_camera_data = Some(camera);
+    }
+
+    pub fn set_light_param(&mut self, param: LightParam) {
+        self.light_uniform.set_param(param);
+    }
+
+    pub fn light_param(&self) -> &LightParam {
+        self.light_uniform.param()
     }
 
     pub fn resize(&mut self, device: &Device, size: PhysicalSize<u32>) {

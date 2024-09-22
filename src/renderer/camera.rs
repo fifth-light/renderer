@@ -83,7 +83,7 @@ impl CameraView {
         Vec3::new(x, y, z).normalize()
     }
 
-    fn front(&self) -> Vec3 {
+    pub fn front(&self) -> Vec3 {
         Self::front_from_yaw_pitch(self.yaw, self.pitch)
     }
 
