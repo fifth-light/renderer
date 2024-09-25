@@ -2,6 +2,7 @@ use glam::Mat4;
 
 pub mod gltf;
 pub mod obj;
+pub mod pmx;
 pub mod texture;
 
 fn pad_color_vec3_to_vec4(color: [f32; 3]) -> [f32; 4] {

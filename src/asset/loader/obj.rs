@@ -54,7 +54,7 @@ pub struct ObjLoader {
 }
 
 impl ObjLoader {
-    pub fn load_obj(&mut self, base_path: &Path, path: &Path) -> Result<MeshAsset, ObjLoadError> {
+    pub fn load(&mut self, base_path: &Path, path: &Path) -> Result<MeshAsset, ObjLoadError> {
         let (models, materials) = tobj::load_obj(
             path,
             &LoadOptions {

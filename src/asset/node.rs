@@ -92,6 +92,30 @@ pub enum NodeAssetId {
     Path(PathBuf),
 }
 
+impl From<(PathBuf, usize)> for NodeAssetId {
+    fn from(value: (PathBuf, usize)) -> Self {
+        Self::PathIndex(value.0, value.1)
+    }
+}
+
+impl From<(String, usize)> for NodeAssetId {
+    fn from(value: (String, usize)) -> Self {
+        Self::NameIndex(value.0, value.1)
+    }
+}
+
+impl From<String> for NodeAssetId {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}
+
+impl From<PathBuf> for NodeAssetId {
+    fn from(value: PathBuf) -> Self {
+        Self::Path(value)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct NodeAsset {
     pub id: NodeAssetId,

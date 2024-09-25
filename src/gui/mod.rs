@@ -37,6 +37,7 @@ impl GuiState {
 pub enum GuiAction {
     LoadObj(PathBuf),
     LoadGltf(PathBuf),
+    LoadPmx(PathBuf),
     StopAnimation(usize),
     StartAnimationOnce(usize),
     StartAnimationRepeat(usize),

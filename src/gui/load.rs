@@ -33,5 +33,16 @@ pub fn model_load(ctx: &Context, gui_actions_tx: &mut Sender<GuiAction>) {
                     }
                 });
             }
+            if ui.button("Load PMX 2.0").clicked() {
+                let tx = gui_actions_tx.clone();
+                thread::spawn(move || {
+                    if let Some(file) = FileDialog::new()
+                        .add_filter("PMX 2.0 file", &["pmx"])
+                        .pick_file()
+                    {
+                        let _ = tx.send(GuiAction::LoadPmx(file));
+                    }
+                });
+            }
         });
 }

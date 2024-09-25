@@ -20,6 +20,8 @@ pub struct PrimitiveSkin {
     pub weights: SkinWeights,
 }
 
+pub enum PrimitiveVertex {}
+
 #[derive(Debug, Clone)]
 pub struct PrimitiveAsset {
     pub name: Option<String>,

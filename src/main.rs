@@ -6,7 +6,7 @@ use log::{error, info};
 use pollster::FutureExt;
 use renderer::{
     asset::{
-        loader::{self, obj::ObjLoader},
+        loader::{self, obj::ObjLoader, pmx::PmxLoader},
         node::DecomposedTransform,
     },
     gui::{gui_main, GuiAction, GuiState},
@@ -169,7 +169,7 @@ impl<'a> State<'a> {
                 return;
             }
         };
-        let mesh_asset = match obj_loader.load_obj(base_dir, &path) {
+        let mesh_asset = match obj_loader.load(base_dir, &path) {
             Ok(asset) => asset,
             Err(err) => {
                 self.gui_state
@@ -177,8 +177,8 @@ impl<'a> State<'a> {
                 return;
             }
         };
-        let ufo_group = asset_loader.load_mesh(&self.device, &self.queue, mesh_asset);
-        self.renderer.add_node(ufo_group);
+        let mesh_node = asset_loader.load_mesh(&self.device, &self.queue, mesh_asset);
+        self.renderer.add_node(mesh_node);
     }
 
     fn load_gltf(&mut self, path: PathBuf) {
@@ -198,6 +198,7 @@ impl<'a> State<'a> {
             scenes,
             Some(path.to_string_lossy().to_string()),
         );
+
         let animations = asset_loader.load_animations(animations);
 
         if path.to_string_lossy().contains("aris") {
@@ -217,6 +218,32 @@ impl<'a> State<'a> {
         for animation in animations {
             self.renderer.add_animation_group(animation);
         }
+    }
+
+    fn load_pmx(&mut self, path: PathBuf) {
+        let mut asset_loader =
+            RendererAssetLoader::new(self.renderer.state.bind_group_layout(), &mut self.pipelines);
+        let mut pmx_loader = PmxLoader::default();
+        let base_dir = match path.parent() {
+            Some(base_dir) => base_dir,
+            None => {
+                self.gui_state.add_error(format!(
+                    "Failed to find a base path for \"{}\"",
+                    path.to_string_lossy()
+                ));
+                return;
+            }
+        };
+        let scene_asset = match pmx_loader.load(base_dir, &path) {
+            Ok(asset) => asset,
+            Err(err) => {
+                self.gui_state
+                    .add_error(format!("Load pmx failed: {}", err));
+                return;
+            }
+        };
+        let node = asset_loader.load_scene(&self.device, &self.queue, scene_asset);
+        self.renderer.add_node(node);
     }
 
     fn setup_scene(&mut self) {
@@ -282,6 +309,7 @@ impl<'a> State<'a> {
             match action {
                 GuiAction::LoadObj(path) => self.load_obj(path),
                 GuiAction::LoadGltf(path) => self.load_gltf(path),
+                GuiAction::LoadPmx(path) => self.load_pmx(path),
                 GuiAction::StopAnimation(id) => {
                     self.renderer
                         .set_animation_state(id, AnimationState::Stopped);
