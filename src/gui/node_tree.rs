@@ -221,6 +221,22 @@ pub fn light_node(ui: &mut Ui, light: &LightNode) {
                     ui.label(format!("Linear: {:#.2}", linear));
                     ui.label(format!("Quadratic: {:#.2}", quadratic));
                 }
+                LightParam::Directional {
+                    color,
+                    constant,
+                    linear,
+                    quadratic,
+                    range_inner,
+                    range_outer,
+                } => {
+                    ui.label("Type: Directional");
+                    ui.label(format!("Color: {:#.2}", color));
+                    ui.label(format!("Constant: {:#.2}", constant));
+                    ui.label(format!("Linear: {:#.2}", linear));
+                    ui.label(format!("Quadratic: {:#.2}", quadratic));
+                    ui.label(format!("Range Inner: {:#.2}", range_inner));
+                    ui.label(format!("Range Outer: {:#.2}", range_outer));
+                }
                 LightParam::Parallel {
                     direction,
                     color,

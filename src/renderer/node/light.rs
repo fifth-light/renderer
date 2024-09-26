@@ -18,11 +18,11 @@ use super::{
 #[rustfmt::skip]
 const LIGHT_POSITIONS: &[[f32; 3]] = &[
     [-0.05, -0.05, -0.05],
-    [0.05,  -0.05, -0.05],
-    [0.05,   0.05, -0.05],
+    [0.05,  -0.06, -0.08],
+    [0.05,   0.06, -0.08],
     [-0.05,  0.05, -0.05],
-    [0.05,  -0.05,  0.05],
-    [0.05,   0.05,  0.05],
+    [0.05,  -0.06,  0.08],
+    [0.05,   0.06,  0.08],
     [-0.05, -0.05,  0.05],
     [-0.05,  0.05,  0.05],
 ];
@@ -52,6 +52,16 @@ pub enum LightData {
         linear: f32,
         quadratic: f32,
     },
+    Directional {
+        position: Vec3,
+        color: Vec3,
+        direction: Vec3,
+        constant: f32,
+        linear: f32,
+        quadratic: f32,
+        range_inner: f32,
+        range_outer: f32,
+    },
     Parallel {
         direction: Vec3,
         color: Vec3,
@@ -66,6 +76,14 @@ pub enum LightParam {
         constant: f32,
         linear: f32,
         quadratic: f32,
+    },
+    Directional {
+        color: Vec3,
+        constant: f32,
+        linear: f32,
+        quadratic: f32,
+        range_inner: f32,
+        range_outer: f32,
     },
     Parallel {
         direction: Vec3,
@@ -92,6 +110,7 @@ impl LightNode {
         let indices = IndexBuffer::new(device, LIGHT_INDICES, None);
         let color = match param {
             LightParam::Point { color, .. } => color,
+            LightParam::Directional { color, .. } => color,
             LightParam::Parallel { color, .. } => color,
         };
         let color_array = color.to_array();
@@ -115,20 +134,18 @@ impl LightNode {
             },
             false,
         );
-        let node = if let LightParam::Point { .. } = param {
-            if show_box {
+        let node = match (&param, show_box) {
+            (LightParam::Point { .. }, true) | (LightParam::Directional { .. }, true) => {
                 Some(PrimitiveNode::new(
                     Some(indices),
                     PrimitiveNodeContent::Color { buffer },
                     pipeline,
                     None,
                 ))
-            } else {
-                None
             }
-        } else {
-            None
+            _ => None,
         };
+
         LightNode {
             id: new_node_id(),
             node,
@@ -156,7 +173,8 @@ impl RenderNode for LightNode {
         global_context: &mut GlobalContext,
         invalid: bool,
     ) {
-        let (_, _, position) = local_context.transform().to_scale_rotation_translation();
+        let (_, rotation, position) = local_context.transform().to_scale_rotation_translation();
+
         let light_data = match self.param {
             LightParam::Point {
                 color,
@@ -169,6 +187,23 @@ impl RenderNode for LightNode {
                 constant,
                 linear,
                 quadratic,
+            },
+            LightParam::Directional {
+                color,
+                constant,
+                linear,
+                quadratic,
+                range_inner,
+                range_outer,
+            } => LightData::Directional {
+                position,
+                color,
+                direction: rotation.mul_vec3(Vec3::new(1.0, 0.0, 0.0)),
+                constant,
+                linear,
+                quadratic,
+                range_inner,
+                range_outer,
             },
             LightParam::Parallel {
                 direction,

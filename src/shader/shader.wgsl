@@ -5,6 +5,7 @@ struct CameraUniform {
     aspect: f32,
 }
 const MAX_POINT_LIGHTS = 128;
+const MAX_DIRECTIONAL_LIGHTS = 64;
 const MAX_PARALLEL_LIGHTS = 16;
 struct PointLightData {
     position: vec3f, // 12 pad to 16
@@ -14,6 +15,17 @@ struct PointLightData {
     quadratic: f32, //  40
 //                      pad to 48
 }
+struct DirectionalLightData {
+    position: vec3f, //  12
+    constant: f32, //    16
+    direction: vec3f, // 28
+    linear: f32, //      32
+    color: vec3f, //     44
+    quadratic: f32, //   48
+    range_inner: f32, // 52
+    range_outer: f32, // 56
+//                       pad to 64
+}
 struct ParallelLightData {
     direction: vec3f, // 12 pad to 16
     color: vec3f, //     28
@@ -22,16 +34,19 @@ struct ParallelLightData {
 }
 struct LightUniform {
     point_length: u32, //          4
-    parallel_length: u32, //       8
-    start_strength: f32, //        12
-    stop_strength: f32, //         16
-    max_strength: f32, //          20
-    border_start_strength: f32, // 24
-    border_stop_strength: f32, //  28
-    border_max_strength: f32, //   32
-    ambient_strength: f32, //      36
-    point: array<PointLightData, MAX_POINT_LIGHTS>, // 6160
-    parallel: array<ParallelLightData, MAX_PARALLEL_LIGHTS>, // 6672
+    directional_length: u32, //    8
+    parallel_length: u32, //       12
+    start_strength: f32, //        16
+    stop_strength: f32, //         20
+    max_strength: f32, //          24
+    border_start_strength: f32, // 28
+    border_stop_strength: f32, //  32
+    border_max_strength: f32, //   36
+    ambient_strength: f32, //      40
+    //                             pad to 48
+    point: array<PointLightData, MAX_POINT_LIGHTS>, // 6192
+    directional: array<DirectionalLightData, MAX_DIRECTIONAL_LIGHTS>, // 10288
+    parallel: array<ParallelLightData, MAX_PARALLEL_LIGHTS>, // 10800
 }
 @group(0) @binding(0)
 var<uniform> camera: CameraUniform;
@@ -276,6 +291,24 @@ fn point_light_process(in_color: vec3f, normal: vec3f, position: vec3f, point: P
     return diffuse * in_color * attenuation;
 }
 
+fn directional_light_process(in_color: vec3f, normal: vec3f, position: vec3f, directional: DirectionalLightData) -> vec3f {
+    let light_pos = directional.position;
+    let light_color = directional.color;
+    let light_direction = normalize(light_pos - position);
+
+    let normal_cosine = max(dot(normal, light_direction), 0.0);
+    let direction_cosine = max(dot(light_direction, -directional.direction), 0.0);
+    let direction_sine = sqrt(1.0 - direction_cosine * direction_cosine);
+    let base_strength: f32 = strength_map(normal_cosine);
+    let directional_strength: f32 = 1.0 - smoothstep(directional.range_inner, directional.range_outer, direction_sine);
+    let diffuse = base_strength * directional_strength * light_color;
+
+    let distance = length(light_pos - position);
+    let attenuation = 1.0 / (directional.constant + directional.linear * distance + directional.quadratic * (distance * distance));
+
+    return diffuse * in_color * attenuation;
+}
+
 fn parallel_light_process(in_color: vec3f, normal: vec3f, position: vec3f, parallel: ParallelLightData) -> vec3f {
     let light_direction = normalize(parallel.direction);
     let light_color = parallel.color;
@@ -308,6 +341,12 @@ fn light_process(in_color: vec4f, normal: vec3f, tangent: vec3f, position: vec3f
         result += point_light_process(color, normal, position, point);
     }
 
+    // Directional light
+    for (var i: u32 = 0; i < light.directional_length; i++) {
+        let directional = light.directional[i];
+        result += directional_light_process(color, normal, position, directional);
+    }
+
     // Parallel light
     for (var i: u32 = 0; i < light.parallel_length; i++) {
         let parallel = light.parallel[i];
@@ -335,12 +374,13 @@ fn texture_fs_main(in: TextureVertexOutput) -> @location(0) vec4f {
 }
 
 fn outline_color_process(color: vec3f) -> vec3f {
-    return color * 0.05;
+    return color * 0.1;
 }
 
 @fragment
 fn color_outline_fs_main(in: ColorVertexOutput) -> @location(0) vec4f {
-    return vec4(outline_color_process(in.color.rgb), in.color.a);
+    let color = light_process(in.color, in.normal, in.tangent, in.position);
+    return vec4(outline_color_process(color.rgb), color.a);
 }
 
 @fragment
@@ -349,5 +389,6 @@ fn texture_outline_fs_main(in: TextureVertexOutput) -> @location(0) vec4f {
     if in_color.a == 0.0 {
         discard;
     }
-    return vec4(outline_color_process(in_color.rgb), in_color.a);
+    let color = light_process(in_color, in.normal, in.tangent, in.position);
+    return vec4(outline_color_process(color.rgb), color.a);
 }

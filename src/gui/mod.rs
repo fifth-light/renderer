@@ -3,6 +3,7 @@ use std::{path::PathBuf, sync::mpsc::Sender, time::Instant};
 use animation::animation_items;
 use egui::Context;
 use error::error_dialog;
+use glam::Vec3;
 use light::light_param;
 use load::model_load;
 use node_tree::node_tree;
@@ -10,7 +11,7 @@ use perf::perf_info;
 
 use crate::{
     perf::PerformanceTracker,
-    renderer::{uniform::light::LightParam, Renderer},
+    renderer::{uniform::light::GlobalLightParam, Renderer},
 };
 
 mod animation;
@@ -43,7 +44,8 @@ pub enum GuiAction {
     StartAnimationRepeat(usize),
     StartAnimationLoop(usize),
     EnableCamera(Option<usize>),
-    SetLightParam(LightParam),
+    SetLightParam(GlobalLightParam),
+    SetBackgroundColor(Vec3),
 }
 
 pub fn gui_main(

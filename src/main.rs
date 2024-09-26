@@ -259,22 +259,33 @@ impl<'a> State<'a> {
             RenderNodeItem::Crosshair(Box::new(crosshair)),
         );
 
-        let global_light = LightNode::new(
+        let point_light = LightNode::new(
             &self.device,
             self.renderer.state.bind_group_layout(),
             &mut pipelines,
-            LightParam::Parallel {
-                direction: Vec3::new(2.0, 3.0, 2.0),
-                color: Vec3::new(1.0, 1.0, 0.8),
-                strength: 1.3,
+            LightParam::Directional {
+                color: Vec3::new(1.0, 1.0, 0.0),
+                constant: 1.0,
+                linear: 0.045,
+                quadratic: 0.0075,
+                range_inner: (10.0f32).to_radians(),
+                range_outer: (25.0f32).to_radians(),
             },
-            false,
+            true,
+        );
+        let light_transform = TransformNode::from_decomposed_transform(
+            DecomposedTransform {
+                translation: Vec3::new(2.0, 2.0, 2.0),
+                rotation: Quat::from_euler(EulerRot::XYZ, 0.0, PI * 0.75, -PI * 0.25),
+                scale: Vec3::ONE,
+            },
+            RenderNodeItem::Light(Box::new(point_light)),
         );
 
         self.renderer
             .add_node(RenderNodeItem::Transform(Box::new(crosshair_transform)));
         self.renderer
-            .add_node(RenderNodeItem::Light(Box::new(global_light)));
+            .add_node(RenderNodeItem::Transform(Box::new(light_transform)));
     }
 
     fn resize(&mut self, new_size: PhysicalSize<u32>) {
@@ -330,7 +341,10 @@ impl<'a> State<'a> {
                     self.renderer.state.set_enabled_camera(id);
                 }
                 GuiAction::SetLightParam(param) => {
-                    self.renderer.state.set_light_param(param);
+                    self.renderer.state.set_global_light_param(param);
+                }
+                GuiAction::SetBackgroundColor(color) => {
+                    self.renderer.state.set_background_color(color);
                 }
             }
         }
@@ -362,7 +376,7 @@ impl<'a> State<'a> {
             .texture
             .create_view(&TextureViewDescriptor::default());
         let mut ongoing_state =
-            OngoingRenderState::new(&self.device, texture_view, &self.renderer.state);
+            OngoingRenderState::new(&self.device, &texture_view, &self.renderer.state);
 
         self.renderer.render(&mut ongoing_state);
 

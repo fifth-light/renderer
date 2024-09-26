@@ -4,13 +4,17 @@ use animation::{AnimationGroupNode, AnimationState};
 use camera::Camera;
 use context::{GlobalContext, DEFAULT_LOCAL_CONTEXT};
 use depth_texture::DepthTexture;
-use glam::Mat4;
+use glam::{Mat4, Vec3};
 use log::warn;
-use node::{group::GroupNode, light::LightData, RenderNode, RenderNodeItem};
+use node::{
+    group::GroupNode,
+    light::{LightData, LightParam},
+    RenderNode, RenderNodeItem,
+};
 use texture::TextureItem;
 use uniform::{
     camera::CameraUniformBuffer,
-    light::{LightParam, LightUniformBuffer},
+    light::{GlobalLightParam, LightUniformBuffer},
     transform::InstanceUniformBuffer,
 };
 use wgpu::{
@@ -51,10 +55,33 @@ pub struct OngoingRenderState<'a> {
     empty_texture_bind_group: &'a BindGroup,
 }
 
+#[derive(Debug)]
+pub struct RenderTarget<'a> {
+    texture_view: &'a TextureView,
+    background_color: Vec3,
+}
+
 impl<'a> OngoingRenderState<'a> {
     pub fn new(
         device: &Device,
-        texture_view: TextureView,
+        texture_view: &'a TextureView,
+        renderer_state: &'a RendererState,
+    ) -> Self {
+        Self::new_with_target(
+            device,
+            Some(RenderTarget {
+                texture_view,
+                background_color: renderer_state.background_color().clone(),
+            }),
+            Some(&renderer_state.depth_texture),
+            renderer_state,
+        )
+    }
+
+    fn new_with_target(
+        device: &Device,
+        render_target: Option<RenderTarget<'a>>,
+        depth_texture: Option<&DepthTexture>,
         renderer_state: &'a RendererState,
     ) -> Self {
         let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
@@ -63,26 +90,28 @@ impl<'a> OngoingRenderState<'a> {
         let mut render_pass = encoder
             .begin_render_pass(&RenderPassDescriptor {
                 label: Some("Render Pass"),
-                color_attachments: &[Some(RenderPassColorAttachment {
-                    view: &texture_view,
+                color_attachments: &[render_target.map(|target| RenderPassColorAttachment {
+                    view: target.texture_view,
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Clear(Color {
-                            r: 0.5,
-                            g: 0.6,
-                            b: 1.0,
+                            r: target.background_color.x as f64,
+                            g: target.background_color.y as f64,
+                            b: target.background_color.z as f64,
                             a: 1.0,
                         }),
                         store: StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-                    view: renderer_state.depth_texture.texture_view(),
-                    depth_ops: Some(Operations {
-                        load: LoadOp::Clear(1.0),
-                        store: StoreOp::Store,
-                    }),
-                    stencil_ops: None,
+                depth_stencil_attachment: depth_texture.map(|depth_texture| {
+                    RenderPassDepthStencilAttachment {
+                        view: depth_texture.texture_view(),
+                        depth_ops: Some(Operations {
+                            load: LoadOp::Clear(1.0),
+                            store: StoreOp::Store,
+                        }),
+                        stencil_ops: None,
+                    }
                 }),
                 ..Default::default()
             })
@@ -254,11 +283,13 @@ pub struct RendererState {
 
     empty_texture_group: BindGroup,
     light_uniform: LightUniformBuffer,
+    background_color: Vec3,
 
     free_camera: Camera,
     enabled_camera: Option<usize>,
     enabled_camera_data: Option<Camera>,
     camera_updated: bool,
+    flashlight: Option<LightParam>,
 
     depth_texture: DepthTexture,
 
@@ -271,7 +302,7 @@ impl RendererState {
         let view_aspect = size.width as f32 / size.height as f32;
         let camera = Camera::default();
         let camera_buffer = CameraUniformBuffer::new(device, &camera, view_aspect);
-        let light_uniform = LightUniformBuffer::new(device, vec![], LightParam::default());
+        let light_uniform = LightUniformBuffer::new(device, vec![], GlobalLightParam::default());
         let default_instance_buffer = InstanceUniformBuffer::new(device, Mat4::IDENTITY);
 
         let depth_texture = DepthTexture::new(device, (size.width, size.height));
@@ -317,6 +348,8 @@ impl RendererState {
             default_instance_bind_group,
             empty_texture_group,
             light_uniform,
+            background_color: Vec3::new(0.0, 0.0, 0.0),
+            flashlight: None,
         }
     }
 
@@ -342,12 +375,28 @@ impl RendererState {
         self.enabled_camera_data = Some(camera);
     }
 
-    pub fn set_light_param(&mut self, param: LightParam) {
+    pub fn set_global_light_param(&mut self, param: GlobalLightParam) {
         self.light_uniform.set_param(param);
     }
 
-    pub fn light_param(&self) -> &LightParam {
+    pub fn global_light_param(&self) -> &GlobalLightParam {
         self.light_uniform.param()
+    }
+
+    pub fn set_background_color(&mut self, color: Vec3) {
+        self.background_color = color;
+    }
+
+    pub fn background_color(&self) -> &Vec3 {
+        &self.background_color
+    }
+
+    pub fn set_flashlight(&mut self, flashlight: Option<LightParam>) {
+        self.flashlight = flashlight;
+    }
+
+    pub fn flashlight(&self) -> Option<&LightParam> {
+        self.flashlight.as_ref()
     }
 
     pub fn resize(&mut self, device: &Device, size: PhysicalSize<u32>) {
@@ -359,6 +408,27 @@ impl RendererState {
     }
 
     pub fn set_lights(&mut self, lights: Vec<LightData>) {
+        let mut lights = lights;
+        if let Some(LightParam::Directional {
+            color,
+            constant,
+            linear,
+            quadratic,
+            range_inner,
+            range_outer,
+        }) = self.flashlight
+        {
+            lights.push(LightData::Directional {
+                position: self.free_camera.view.eye,
+                color,
+                direction: self.free_camera.view.front(),
+                constant,
+                linear,
+                quadratic,
+                range_inner,
+                range_outer,
+            });
+        }
         self.light_uniform.items = lights;
     }
 
