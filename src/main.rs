@@ -2,7 +2,7 @@ use egui::{Context, ViewportId};
 use egui_wgpu::{Renderer as EguiRenderer, ScreenDescriptor};
 use egui_winit::State as EguiWinitState;
 use glam::{EulerRot, Quat, Vec3};
-use log::{error, info};
+use log::{error, info, warn};
 use pollster::FutureExt;
 use renderer::{
     asset::{
@@ -540,6 +540,14 @@ impl ApplicationHandler for App {
             WindowEvent::KeyboardInput { event, .. } => match event.physical_key {
                 PhysicalKey::Code(KeyCode::Escape) => {
                     event_loop.exit();
+                }
+                PhysicalKey::Code(KeyCode::F2) => {
+                    if !event.repeat && event.state == ElementState::Released {
+                        let image = state.renderer.state.dump_depth(&state.device, &state.queue);
+                        if let Err(err) = image.save("depth.png") {
+                            warn!("Failed to write depth image: {}", err);
+                        }
+                    }
                 }
                 PhysicalKey::Code(KeyCode::F11) => {
                     if !event.repeat && event.state == ElementState::Released {

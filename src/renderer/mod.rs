@@ -5,6 +5,7 @@ use camera::Camera;
 use context::{GlobalContext, DEFAULT_LOCAL_CONTEXT};
 use depth_texture::DepthTexture;
 use glam::{Mat4, Vec3};
+use image::GrayImage;
 use log::warn;
 use node::{
     group::GroupNode,
@@ -110,7 +111,10 @@ impl<'a> OngoingRenderState<'a> {
                             load: LoadOp::Clear(1.0),
                             store: StoreOp::Store,
                         }),
-                        stencil_ops: None,
+                        stencil_ops: Some(Operations {
+                            load: LoadOp::Clear(0),
+                            store: StoreOp::Store,
+                        }),
                     }
                 }),
                 ..Default::default()
@@ -455,6 +459,10 @@ impl RendererState {
 
     fn render<'a>(&'a self, ongoing_state: &mut OngoingRenderState<'a>, root_node: &'a GroupNode) {
         root_node.draw(self, ongoing_state);
+    }
+
+    pub fn dump_depth(&self, device: &Device, queue: &Queue) -> GrayImage {
+        self.depth_texture.dump_depth(device, queue)
     }
 }
 
