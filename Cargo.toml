@@ -2,10 +2,17 @@
 name = "renderer"
 version = "0.1.0"
 edition = "2021"
+publish = false
+
+[features]
+panics-log = ["log-panics"]
+
+[lib]
+name = "renderer"
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 bytemuck = { version = "1", features = ["derive"] }
-env_logger = "0.11"
 glam = "0.29"
 gltf = { version = "1", features = ["import"] }
 image = "0.25"
@@ -18,9 +25,47 @@ egui = { git = "https://github.com/emilk/egui.git" }
 egui-winit = { git = "https://github.com/emilk/egui.git" }
 egui-wgpu = { git = "https://github.com/emilk/egui.git" }
 egui_plot = { git = "https://github.com/emilk/egui_plot.git" }
-rfd = "0.14"
 binrw = "0.14"
 modular-bitfield = "0.11"
+log-panics = { version = "2", features = ["with-backtrace"], optional = true }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+rfd = "0.14"
+env_logger = "0.11"
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+ndk = "0.9"
+android_logger = "0.13"
+winit = { version = "0.30", features = ["android-native-activity"] }
+
+[package.metadata.android]
+package = "top.fifthlight.renderer"
+#build_targets = [
+#    "armv7-linux-androideabi",
+#    "aarch64-linux-android",
+#    "i686-linux-android",
+#    "x86_64-linux-android",
+#]
+
+[package.metadata.android.sdk]
+min_sdk_version = 19
+target_sdk_version = 34
+
+[[package.metadata.android.uses_feature]]
+name = "android.hardware.vulkan.level"
+required = false
+version = 1
+
+[package.metadata.android.application]
+debuggable = true
+label = "renderer"
+theme = "@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
+
+[package.metadata.android.application.activity]
+launch_mode = "singleTop"
+config_changes = "orientation"
+orientation = "landscape"
 
 [patch.crates-io]
 egui = { git = "https://github.com/emilk/egui.git" }

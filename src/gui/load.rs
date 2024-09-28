@@ -1,11 +1,13 @@
 use std::{sync::mpsc::Sender, thread};
 
 use egui::{Align2, Context, Window};
-use rfd::FileDialog;
 
 use super::GuiAction;
 
+#[cfg(not(target_os = "android"))]
 pub fn model_load(ctx: &Context, gui_actions_tx: &mut Sender<GuiAction>) {
+    use rfd::FileDialog;
+
     Window::new("Load Model")
         .resizable([false, false])
         .pivot(Align2::RIGHT_TOP)
@@ -44,5 +46,15 @@ pub fn model_load(ctx: &Context, gui_actions_tx: &mut Sender<GuiAction>) {
                     }
                 });
             }
+        });
+}
+
+#[cfg(target_os = "android")]
+pub fn model_load(ctx: &Context, _gui_actions_tx: &mut Sender<GuiAction>) {
+    Window::new("Load Model")
+        .resizable([false, false])
+        .pivot(Align2::RIGHT_TOP)
+        .show(ctx, |ui| {
+            ui.label("Loading model is not supported on Android.");
         });
 }
