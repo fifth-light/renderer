@@ -18,7 +18,7 @@ pub fn light_param(
         .show(ctx, |ui| {
             ui.label("Background color:");
             let background_color = renderer.background_color().to_array();
-            let mut edit_background_color = background_color.clone();
+            let mut edit_background_color = background_color;
             color_edit_button_rgb(ui, &mut edit_background_color);
             if edit_background_color != background_color {
                 let _ = gui_actions_tx.send(GuiAction::SetBackgroundColor(Vec3::from_array(

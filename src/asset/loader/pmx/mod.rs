@@ -129,7 +129,7 @@ impl PmxLoader {
             surfaces_next = surfaces_left;
 
             let surfaces = surfaces
-                .into_iter()
+                .iter()
                 .map(|surface| &file.vertices[surface.0.unwrap()]);
 
             let mut positions = Vec::new();

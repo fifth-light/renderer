@@ -72,7 +72,7 @@ impl<'a> OngoingRenderState<'a> {
             device,
             Some(RenderTarget {
                 texture_view,
-                background_color: renderer_state.background_color().clone(),
+                background_color: *renderer_state.background_color(),
             }),
             Some(&renderer_state.depth_texture),
             renderer_state,

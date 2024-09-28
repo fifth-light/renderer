@@ -86,14 +86,15 @@ impl DepthTexture {
         let buffer_slice = buffer.slice(..);
         let (tx, rx) = mpsc::channel();
         buffer_slice.map_async(MapMode::Read, move |result| {
-            tx.send(result.unwrap()).unwrap();
+            result.unwrap();
+            tx.send(()).unwrap();
         });
         device.poll(Maintain::Wait);
         rx.recv().unwrap();
         let buffer_view = buffer_slice.get_mapped_range();
         let data: Vec<u8> = buffer_view
             .chunks_exact(bytes_per_row as usize)
-            .flat_map(|row| row[0..actual_bytes_per_row as usize].into_iter())
+            .flat_map(|row| row[0..actual_bytes_per_row as usize].iter())
             .cloned()
             .collect();
         let data: Vec<u8> = data
