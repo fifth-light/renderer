@@ -4,6 +4,7 @@ use animation::animation_items;
 use egui::Context;
 use error::error_dialog;
 use glam::Vec3;
+use joystick::joystick;
 use light::light_param;
 use load::model_load;
 use node_tree::node_tree;
@@ -11,12 +12,13 @@ use perf::perf_info;
 
 use crate::{
     perf::PerformanceTracker,
-    renderer::{uniform::light::GlobalLightParam, Renderer},
+    renderer::{camera::PositionController, uniform::light::GlobalLightParam, Renderer},
 };
 
 mod animation;
 mod context;
 mod error;
+mod joystick;
 mod light;
 mod load;
 mod matrix;
@@ -54,6 +56,7 @@ pub fn gui_main(
     renderer: &Renderer,
     perf_tracker: &PerformanceTracker,
     state: &mut GuiState,
+    position_controller: &mut PositionController,
     gui_actions_tx: &mut Sender<GuiAction>,
 ) {
     node_tree(ctx, renderer, gui_actions_tx);
@@ -61,6 +64,7 @@ pub fn gui_main(
     model_load(ctx, gui_actions_tx);
     animation_items(ctx, time, renderer.animation_groups(), gui_actions_tx);
     light_param(ctx, &renderer.state, gui_actions_tx);
+    joystick(ctx, position_controller);
 
     let mut remove_index = Vec::new();
     for (index, error) in state.errors.iter().enumerate() {

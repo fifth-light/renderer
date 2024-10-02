@@ -156,24 +156,24 @@ impl Camera {
 #[derive(Clone, Debug)]
 pub struct PositionController {
     pub speed: f32,
-    pub forward: bool,
-    pub backward: bool,
-    pub left: bool,
-    pub right: bool,
-    pub up: bool,
-    pub down: bool,
+    pub forward: f32,
+    pub backward: f32,
+    pub left: f32,
+    pub right: f32,
+    pub up: f32,
+    pub down: f32,
 }
 
 impl Default for PositionController {
     fn default() -> Self {
         Self {
             speed: 0.01,
-            forward: false,
-            backward: false,
-            left: false,
-            right: false,
-            up: false,
-            down: false,
+            forward: 0.0,
+            backward: 0.0,
+            left: 0.0,
+            right: 0.0,
+            up: 0.0,
+            down: 0.0,
         }
     }
 }
@@ -185,27 +185,16 @@ impl PositionController {
         let mut movement: Vec3 = (0.0, 0.0, 0.0).into();
 
         let forward: Vec3 = camera.view.front_ignore_pitch(0.0) * distance;
-        if self.forward {
-            movement += forward;
-        }
-        if self.backward {
-            movement -= forward;
-        }
+        movement += forward * self.forward;
+        movement -= forward * self.backward;
 
         let left: Vec3 = camera.view.front_ignore_pitch(-90.0) * distance;
-        if self.left {
-            movement += left;
-        }
-        if self.right {
-            movement -= left;
-        }
+        movement += left * self.left;
+        movement -= left * self.right;
 
-        if self.up {
-            movement.y += distance;
-        }
-        if self.down {
-            movement.y -= distance;
-        }
+        movement.y += distance * self.up;
+        movement.y -= distance * self.down;
+
         camera.move_eye(movement)
     }
 }

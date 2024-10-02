@@ -407,6 +407,7 @@ impl<'a> State<'a> {
                     &self.renderer,
                     &self.perf_tracker,
                     &mut self.gui_state,
+                    &mut self.position_controller,
                     &mut self.gui_actions_tx,
                 );
             });
@@ -610,22 +611,28 @@ impl ApplicationHandler for App {
                 }
                 WindowEvent::KeyboardInput { event, .. } => match event.physical_key {
                     PhysicalKey::Code(KeyCode::KeyW) => {
-                        state.position_controller.forward = event.state.is_pressed();
+                        state.position_controller.forward =
+                            if event.state.is_pressed() { 1.0 } else { 0.0 };
                     }
                     PhysicalKey::Code(KeyCode::KeyA) => {
-                        state.position_controller.left = event.state.is_pressed();
+                        state.position_controller.left =
+                            if event.state.is_pressed() { 1.0 } else { 0.0 };
                     }
                     PhysicalKey::Code(KeyCode::KeyS) => {
-                        state.position_controller.backward = event.state.is_pressed();
+                        state.position_controller.backward =
+                            if event.state.is_pressed() { 1.0 } else { 0.0 };
                     }
                     PhysicalKey::Code(KeyCode::KeyD) => {
-                        state.position_controller.right = event.state.is_pressed();
+                        state.position_controller.right =
+                            if event.state.is_pressed() { 1.0 } else { 0.0 };
                     }
                     PhysicalKey::Code(KeyCode::Space) => {
-                        state.position_controller.up = event.state.is_pressed();
+                        state.position_controller.up =
+                            if event.state.is_pressed() { 1.0 } else { 0.0 };
                     }
                     PhysicalKey::Code(KeyCode::ShiftLeft) => {
-                        state.position_controller.down = event.state.is_pressed();
+                        state.position_controller.down =
+                            if event.state.is_pressed() { 1.0 } else { 0.0 };
                     }
                     _ => (),
                 },
