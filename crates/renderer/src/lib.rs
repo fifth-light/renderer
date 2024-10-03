@@ -11,10 +11,9 @@ use egui::{Context, ViewportId};
 use egui_wgpu::{Renderer as EguiRenderer, ScreenDescriptor};
 use egui_winit::State as EguiWinitState;
 use glam::{EulerRot, Quat, Vec3};
-use gui::{gui_main, GuiAction, GuiState};
-use log::warn;
+use gui::{gui_main, GuiAction, GuiParam, GuiState, ModelLoaderGui};
+use log::{info, warn};
 use perf::PerformanceTracker;
-use pollster::FutureExt;
 use renderer::{
     animation::AnimationState,
     camera::{CameraProjection, PositionController},
@@ -37,21 +36,28 @@ use std::{
 };
 use wgpu::{
     util::{backend_bits_from_env, initialize_adapter_from_env, power_preference_from_env},
-    Backends, Device, DeviceDescriptor, Instance, InstanceDescriptor, PowerPreference, PresentMode,
-    Queue, RequestAdapterOptions, Surface, SurfaceConfiguration, SurfaceError, TextureFormat,
-    TextureUsages, TextureViewDescriptor,
+    Adapter, Backends, Device, DeviceDescriptor, Instance, InstanceDescriptor, PowerPreference,
+    PresentMode, Queue, RequestAdapterOptions, Surface, SurfaceConfiguration, SurfaceError,
+    TextureFormat, TextureUsages, TextureViewDescriptor,
 };
 use winit::{
     application::ApplicationHandler,
     dpi::{LogicalSize, PhysicalSize},
     event::{DeviceEvent, DeviceId, ElementState, MouseScrollDelta, WindowEvent},
-    event_loop::ActiveEventLoop,
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy},
     keyboard::{KeyCode, PhysicalKey},
-    window::{Fullscreen, Window, WindowAttributes, WindowId},
+    window::{CursorGrabMode, Fullscreen, Window, WindowAttributes, WindowId},
 };
 
-struct State<'a> {
-    surface: Surface<'a>,
+pub use egui;
+pub use egui_plot;
+pub use egui_wgpu;
+pub use winit;
+
+struct State<'a, ModelLoader: ModelLoaderGui> {
+    instance: Instance,
+    adapter: Adapter,
+    surface: Option<Surface<'a>>,
     device: Device,
     queue: Queue,
     config: SurfaceConfiguration,
@@ -71,10 +77,43 @@ struct State<'a> {
     gui_state: GuiState,
     gui_actions_tx: mpsc::Sender<GuiAction>,
     gui_actions_rx: mpsc::Receiver<GuiAction>,
+
+    model_loader: Arc<ModelLoader>,
 }
 
-impl<'a> State<'a> {
-    async fn new(window: Arc<Window>) -> Self {
+impl<'a, ModelLoader: ModelLoaderGui> State<'a, ModelLoader> {
+    fn create_config(
+        surface: &Surface,
+        adapter: &Adapter,
+        size: PhysicalSize<u32>,
+    ) -> SurfaceConfiguration {
+        if cfg!(any(target_arch = "wasm32", target_arch = "wasm64")) {
+            surface
+                .get_default_config(adapter, size.width, size.height)
+                .expect("The surface is not supported by adapter")
+        } else {
+            let surface_caps = surface.get_capabilities(adapter);
+            let surface_format = surface_caps
+                .formats
+                .iter()
+                .copied()
+                .find(|f| f.is_srgb())
+                .or_else(|| surface_caps.formats.first().copied())
+                .unwrap_or(TextureFormat::Bgra8UnormSrgb);
+            SurfaceConfiguration {
+                usage: TextureUsages::RENDER_ATTACHMENT,
+                format: surface_format,
+                width: size.width,
+                height: size.height,
+                present_mode: PresentMode::AutoVsync,
+                alpha_mode: surface_caps.alpha_modes[0],
+                desired_maximum_frame_latency: 2,
+                view_formats: vec![],
+            }
+        }
+    }
+
+    async fn new(window: Arc<Window>, model_loader: Arc<ModelLoader>) -> Self {
         let size = window.inner_size();
         let instance = Instance::new(InstanceDescriptor {
             backends: backend_bits_from_env().unwrap_or(Backends::all()),
@@ -88,6 +127,7 @@ impl<'a> State<'a> {
             Some(adapter) => adapter,
             None => instance
                 .request_adapter(&RequestAdapterOptions {
+                    compatible_surface: Some(&surface),
                     power_preference: power_preference_from_env().unwrap_or(PowerPreference::None),
                     ..Default::default()
                 })
@@ -98,30 +138,21 @@ impl<'a> State<'a> {
             .request_device(
                 &DeviceDescriptor {
                     label: Some("Device"),
+                    required_limits: if cfg!(any(target_arch = "wasm32", target_arch = "wasm64")) {
+                        wgpu::Limits::downlevel_webgl2_defaults()
+                    } else {
+                        wgpu::Limits::default()
+                    },
                     ..Default::default()
                 },
                 None,
             )
             .await
             .expect("Failed to acquire a device");
-        let surface_caps = surface.get_capabilities(&adapter);
-        let surface_format = surface_caps
-            .formats
-            .iter()
-            .copied()
-            .find(|f| f.is_srgb())
-            .or_else(|| surface_caps.formats.first().copied())
-            .unwrap_or(TextureFormat::Bgra8UnormSrgb);
-        let config = SurfaceConfiguration {
-            usage: TextureUsages::RENDER_ATTACHMENT,
-            format: surface_format,
-            width: size.width,
-            height: size.height,
-            present_mode: PresentMode::AutoVsync,
-            alpha_mode: surface_caps.alpha_modes[0],
-            desired_maximum_frame_latency: 2,
-            view_formats: vec![],
-        };
+
+        let config = Self::create_config(&surface, &adapter, size);
+
+        #[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
         surface.configure(&device, &config);
 
         let renderer = Renderer::new(&device, &queue, window.inner_size());
@@ -140,7 +171,9 @@ impl<'a> State<'a> {
         let (gui_actions_tx, gui_actions_rx) = mpsc::channel();
 
         Self {
-            surface,
+            instance,
+            adapter,
+            surface: Some(surface),
             device,
             queue,
             config,
@@ -157,6 +190,7 @@ impl<'a> State<'a> {
             gui_state: GuiState::default(),
             gui_actions_tx,
             gui_actions_rx,
+            model_loader,
         }
     }
 
@@ -294,10 +328,15 @@ impl<'a> State<'a> {
     }
 
     fn resize(&mut self, new_size: PhysicalSize<u32>) {
+        let surface = match &self.surface {
+            Some(surface) => surface,
+            None => return,
+        };
+
         self.size = new_size;
         self.config.width = new_size.width;
         self.config.height = new_size.height;
-        self.surface.configure(&self.device, &self.config);
+        surface.configure(&self.device, &self.config);
         self.renderer.state.resize(&self.device, new_size);
     }
 
@@ -319,6 +358,20 @@ impl<'a> State<'a> {
             camera.view.pitch -= y_delta;
             camera.view.pitch = camera.view.pitch.clamp(-89.0, 89.0);
         })
+    }
+
+    fn destroy_surface(&mut self) {
+        self.surface = None;
+    }
+
+    fn recreate_surface(&mut self, window: Arc<Window>) {
+        let surface = self
+            .instance
+            .create_surface(window.clone())
+            .expect("Failed to create surface");
+        let config = Self::create_config(&surface, &self.adapter, window.inner_size());
+        surface.configure(&self.device, &config);
+        self.surface = Some(surface);
     }
 
     fn render(&mut self, window: &Window) {
@@ -355,6 +408,11 @@ impl<'a> State<'a> {
             }
         }
 
+        let surface = match &self.surface {
+            Some(surface) => surface,
+            None => return,
+        };
+
         let start_time = Instant::now();
         if let Some(last_renderer_time) = self.last_render_time {
             let duration = start_time - last_renderer_time;
@@ -367,7 +425,7 @@ impl<'a> State<'a> {
             .prepare(&self.device, &self.queue, &start_time);
 
         let output = loop {
-            match self.surface.get_current_texture() {
+            match surface.get_current_texture() {
                 Ok(output) => break output,
                 Err(SurfaceError::Lost | SurfaceError::Outdated) => {
                     warn!("Surface is lost or outdated, drop the frame and resize.");
@@ -403,12 +461,15 @@ impl<'a> State<'a> {
             let full_output = self.egui_state.egui_ctx().run(input, |ctx| {
                 gui_main(
                     ctx,
-                    &start_time,
-                    &self.renderer,
-                    &self.perf_tracker,
+                    GuiParam {
+                        time: &start_time,
+                        renderer: &self.renderer,
+                        model_loader: &*self.model_loader,
+                        perf_tracker: &self.perf_tracker,
+                        position_controller: &mut self.position_controller,
+                        gui_actions_tx: &mut self.gui_actions_tx,
+                    },
                     &mut self.gui_state,
-                    &mut self.position_controller,
-                    &mut self.gui_actions_tx,
                 );
             });
             self.egui_state
@@ -456,18 +517,108 @@ impl<'a> State<'a> {
     }
 }
 
-#[derive(Default)]
-pub struct App {
-    state: Option<State<'static>>,
-    window: Option<Arc<Window>>,
+pub trait AppCallback {
+    fn event_loop_building<T: 'static>(&mut self, _event_loop_builder: &mut EventLoopBuilder<T>) {}
+    fn window_creating(&mut self, param: WindowAttributes) -> WindowAttributes {
+        param
+    }
+    fn window_created(&mut self, _window: &Window) {}
 }
 
-impl App {
-    #[cfg(not(target_os = "android"))]
-    fn update_cursor_grab(window: &Window, grab: bool) {
-        use log::info;
-        use winit::window::CursorGrabMode;
+#[derive(Default)]
+pub struct NoOpAppcallCallback {}
 
+impl AppCallback for NoOpAppcallCallback {}
+
+#[allow(unused)]
+enum MaybeState<ModelLoader: ModelLoaderGui + 'static> {
+    None,
+    Building,
+    State(State<'static, ModelLoader>),
+}
+
+#[allow(unused)]
+pub struct App<Callback, ModelLoader>
+where
+    Callback: AppCallback,
+    ModelLoader: ModelLoaderGui + 'static,
+{
+    state: MaybeState<ModelLoader>,
+    window: Option<Arc<Window>>,
+    model_loader: Arc<ModelLoader>,
+    event_loop_proxy: EventLoopProxy<State<'static, ModelLoader>>,
+    callback: Callback,
+}
+
+impl<Callback, ModelLoader> App<Callback, ModelLoader>
+where
+    Callback: AppCallback + 'static,
+    ModelLoader: ModelLoaderGui + 'static,
+{
+    pub fn run(mut callback: Callback, model_loader: ModelLoader) {
+        let mut event_loop_builder = EventLoop::with_user_event();
+        callback.event_loop_building(&mut event_loop_builder);
+        let event_loop = event_loop_builder
+            .build()
+            .expect("Failed to create event loop");
+
+        event_loop.set_control_flow(ControlFlow::Poll);
+
+        let mut app = Self {
+            state: MaybeState::None,
+            window: Default::default(),
+            model_loader: Arc::new(model_loader),
+            event_loop_proxy: event_loop.create_proxy(),
+            callback,
+        };
+
+        #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+        event_loop
+            .run_app(&mut app)
+            .expect("Failed to run the application");
+
+        #[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
+        {
+            use wasm_bindgen_futures::{
+                js_sys,
+                wasm_bindgen::{self, prelude::*},
+            };
+            use wgpu::web_sys;
+
+            wasm_bindgen_futures::spawn_local(async move {
+                let run_closure = Closure::once_into_js(move || {
+                    event_loop
+                        .run_app(&mut app)
+                        .expect("Failed to run the application");
+                });
+
+                if let Err(error) = call_catch(&run_closure) {
+                    let is_control_flow_exception =
+                        error.dyn_ref::<js_sys::Error>().map_or(false, |e| {
+                            e.message().includes("Using exceptions for control flow", 0)
+                        });
+
+                    if !is_control_flow_exception {
+                        web_sys::console::error_1(&error);
+                    }
+                }
+
+                #[wasm_bindgen]
+                extern "C" {
+                    #[wasm_bindgen(catch, js_namespace = Function, js_name = "prototype.call.call")]
+                    fn call_catch(this: &JsValue) -> Result<(), JsValue>;
+                }
+            });
+        }
+    }
+}
+
+impl<Callback, ModelLoader> App<Callback, ModelLoader>
+where
+    Callback: AppCallback,
+    ModelLoader: ModelLoaderGui,
+{
+    fn update_cursor_grab(window: &Window, grab: bool) {
         window.set_cursor_visible(!grab);
         if grab {
             window
@@ -480,34 +631,69 @@ impl App {
             info!("Failed to cancel grab mouse: {:?}", err);
         }
     }
-
-    #[cfg(target_os = "android")]
-    fn update_cursor_grab(_window: &Window, _grab: bool) {
-        // no-op
-    }
 }
 
-impl ApplicationHandler for App {
+impl<Callback, ModelLoader> ApplicationHandler<State<'static, ModelLoader>>
+    for App<Callback, ModelLoader>
+where
+    Callback: AppCallback,
+    ModelLoader: ModelLoaderGui,
+{
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window = self.window.get_or_insert_with(|| {
-            Arc::new(
+            let param = WindowAttributes::default().with_inner_size(PhysicalSize::new(720, 480));
+            let param = self.callback.window_creating(param);
+            let window = Arc::new(
                 event_loop
-                    .create_window(
-                        WindowAttributes::default().with_inner_size(LogicalSize::new(720, 480)),
-                    )
+                    .create_window(param)
                     .expect("Failed to create window"),
-            )
+            );
+            self.callback.window_created(&window);
+            window
         });
         Self::update_cursor_grab(window, true);
-        if self.state.is_none() {
-            let mut state = State::new(window.clone()).block_on();
-            state.setup_scene();
-            self.state = Some(state);
+        match &mut self.state {
+            MaybeState::None => {
+                #[cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))]
+                {
+                    use pollster::FutureExt;
+
+                    let mut state =
+                        State::new(window.clone(), self.model_loader.clone()).block_on();
+                    state.setup_scene();
+                    self.state = MaybeState::State(state);
+                }
+                #[cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
+                {
+                    self.state = MaybeState::Building;
+                    let event_loop_proxy = self.event_loop_proxy.clone();
+                    let state = State::new(window.clone(), self.model_loader.clone());
+                    wasm_bindgen_futures::spawn_local(async move {
+                        let mut state = state.await;
+                        state.setup_scene();
+                        if event_loop_proxy.send_event(state).is_err() {
+                            warn!("Event loop is closed");
+                        }
+                    });
+                }
+            }
+            MaybeState::Building => {}
+            MaybeState::State(state) => {
+                state.recreate_surface(window.clone());
+            }
         }
     }
 
-    fn suspended(&mut self, _: &ActiveEventLoop) {
-        self.state = None;
+    fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
+        match &mut self.state {
+            MaybeState::State(state) => {
+                state.destroy_surface();
+            }
+            MaybeState::Building => {
+                self.state = MaybeState::None;
+            }
+            MaybeState::None => (),
+        }
     }
 
     fn device_event(
@@ -517,8 +703,8 @@ impl ApplicationHandler for App {
         event: DeviceEvent,
     ) {
         let state = match &mut self.state {
-            Some(state) => state,
-            None => return,
+            MaybeState::State(state) => state,
+            _ => return,
         };
 
         if state.egui_active() {
@@ -537,9 +723,11 @@ impl ApplicationHandler for App {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
-        let (window, state) = match self.window.as_ref().zip(self.state.as_mut()) {
-            Some((window, state)) => (window, state),
-            None => return,
+        let Some(window) = self.window.as_mut() else {
+            return;
+        };
+        let MaybeState::State(state) = &mut self.state else {
+            return;
         };
 
         match &event {
@@ -640,34 +828,26 @@ impl ApplicationHandler for App {
             }
         }
     }
-}
 
-#[cfg(target_os = "android")]
-#[no_mangle]
-fn android_main(app: winit::platform::android::activity::AndroidApp) {
-    use android_logger::Config;
-    use log::LevelFilter;
-    use winit::{
-        event_loop::{ControlFlow, EventLoop},
-        platform::android::EventLoopBuilderExtAndroid,
-    };
-
-    android_logger::init_once(
-        Config::default()
-            .with_tag("renderer")
-            .with_max_level(LevelFilter::Info),
-    );
-    #[cfg(feature = "panics-log")]
-    log_panics::init();
-
-    let event_loop = EventLoop::builder()
-        .with_android_app(app)
-        .build()
-        .expect("Failed to create event loop");
-    event_loop.set_control_flow(ControlFlow::Poll);
-
-    let mut app = App::default();
-    event_loop
-        .run_app(&mut app)
-        .expect("Failed to run the application");
+    fn user_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        mut state: State<'static, ModelLoader>,
+    ) {
+        match self.state {
+            MaybeState::Building => (),
+            MaybeState::State(_) => {
+                warn!("State is created when state is created");
+                return;
+            }
+            MaybeState::None => {
+                warn!("State is created when state is none");
+                return;
+            }
+        }
+        if let Some(window) = &self.window {
+            state.resize(window.inner_size());
+            self.state = MaybeState::State(state);
+        }
+    }
 }

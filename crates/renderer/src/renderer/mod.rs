@@ -50,7 +50,7 @@ pub enum RenderBindGroups<'a> {
 
 pub struct OngoingRenderState<'a> {
     pub encoder: CommandEncoder,
-    pub render_pass: RenderPass<'a>,
+    pub render_pass: RenderPass<'static>,
     instance_bind_group: &'a BindGroup,
     joint_bind_group: Option<&'a BindGroup>,
     empty_texture_bind_group: &'a BindGroup,
@@ -111,10 +111,7 @@ impl<'a> OngoingRenderState<'a> {
                             load: LoadOp::Clear(1.0),
                             store: StoreOp::Store,
                         }),
-                        stencil_ops: Some(Operations {
-                            load: LoadOp::Clear(0),
-                            store: StoreOp::Store,
-                        }),
+                        stencil_ops: None,
                     }
                 }),
                 ..Default::default()

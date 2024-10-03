@@ -1,0 +1,43 @@
+[package]
+name = "renderer-android"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+panics-log = ["log-panics"]
+
+[lib]
+name = "renderer"
+crate-type = ["cdylib"]
+
+[target.'cfg(target_os = "android")'.dependencies]
+renderer = { path = "../renderer" }
+log.workspace = true
+jni = "0.21"
+ndk = "0.9"
+android_logger = "0.14"
+winit = { workspace = true, features = ["android-native-activity"] }
+log-panics = { version = "2", features = ["with-backtrace"], optional = true }
+
+[package.metadata.android]
+package = "top.fifthlight.renderer"
+build_targets = ["aarch64-linux-android"]
+
+[package.metadata.android.sdk]
+min_sdk_version = 19
+target_sdk_version = 34
+
+[[package.metadata.android.uses_feature]]
+name = "android.hardware.vulkan.level"
+required = false
+version = 1
+
+[package.metadata.android.application]
+debuggable = true
+label = "renderer"
+theme = "@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
+
+[package.metadata.android.application.activity]
+launch_mode = "singleTop"
+config_changes = "orientation"
+orientation = "landscape"

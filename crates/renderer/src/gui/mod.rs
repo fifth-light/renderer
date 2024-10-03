@@ -6,7 +6,7 @@ use error::error_dialog;
 use glam::Vec3;
 use joystick::joystick;
 use light::light_param;
-use load::model_load;
+pub use load::{ModelLoaderGui, NotSupportedModelLoaderGui};
 use node_tree::node_tree;
 use perf::perf_info;
 
@@ -50,21 +50,31 @@ pub enum GuiAction {
     SetBackgroundColor(Vec3),
 }
 
-pub fn gui_main(
+pub struct GuiParam<'a, ModelLoader: ModelLoaderGui> {
+    pub time: &'a Instant,
+    pub renderer: &'a Renderer,
+    pub model_loader: &'a ModelLoader,
+    pub perf_tracker: &'a PerformanceTracker,
+    pub position_controller: &'a mut PositionController,
+    pub gui_actions_tx: &'a mut Sender<GuiAction>,
+}
+
+pub fn gui_main<ModelLoader: ModelLoaderGui>(
     ctx: &Context,
-    time: &Instant,
-    renderer: &Renderer,
-    perf_tracker: &PerformanceTracker,
+    param: GuiParam<ModelLoader>,
     state: &mut GuiState,
-    position_controller: &mut PositionController,
-    gui_actions_tx: &mut Sender<GuiAction>,
 ) {
-    node_tree(ctx, renderer, gui_actions_tx);
-    perf_info(ctx, perf_tracker);
-    model_load(ctx, gui_actions_tx);
-    animation_items(ctx, time, renderer.animation_groups(), gui_actions_tx);
-    light_param(ctx, &renderer.state, gui_actions_tx);
-    joystick(ctx, position_controller);
+    node_tree(ctx, param.renderer, param.gui_actions_tx);
+    perf_info(ctx, param.perf_tracker);
+    param.model_loader.ui(ctx, param.gui_actions_tx);
+    animation_items(
+        ctx,
+        param.time,
+        param.renderer.animation_groups(),
+        param.gui_actions_tx,
+    );
+    light_param(ctx, &param.renderer.state, param.gui_actions_tx);
+    joystick(ctx, param.position_controller);
 
     let mut remove_index = Vec::new();
     for (index, error) in state.errors.iter().enumerate() {

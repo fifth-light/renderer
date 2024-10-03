@@ -178,6 +178,7 @@ impl RenderPipelineItem {
     }
 }
 
+#[derive(Debug)]
 pub struct Pipelines {
     shader_module: ShaderModule,
     target_texture_format: TextureFormat,

@@ -1,0 +1,9 @@
+[package]
+name = "renderer-desktop"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+renderer = { path = "../renderer" }
+env_logger.workspace = true
+rfd.workspace = true
