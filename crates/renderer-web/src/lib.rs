@@ -1,6 +1,6 @@
-#![cfg(any(target_arch = "wasm32", target_arch = "wasm64"))]
+#![cfg(target_family = "wasm")]
 
-use log::Level;
+use log::{debug, Level};
 use renderer::{
     gui::NotSupportedModelLoaderGui,
     winit::{platform::web::WindowAttributesExtWebSys, window::WindowAttributes},
@@ -20,9 +20,10 @@ impl AppCallback for WebAppCallback {
 }
 
 #[wasm_bindgen]
-pub async fn run() {
+pub extern "C" fn run() {
     console_error_panic_hook::set_once();
-    console_log::init_with_level(Level::Warn).expect("Failed to setup logger");
+    console_log::init_with_level(Level::Debug).expect("Failed to setup logger");
+    debug!("Renderer loading");
     web_sys::window()
         .and_then(|win| win.document())
         .map(|doc| {
@@ -31,8 +32,6 @@ pub async fn run() {
                 .expect("Canvas not found")
                 .dyn_into()
                 .expect("#renderer-canvas is not a <canvas>");
-            canvas.set_attribute("width", "720").unwrap_throw();
-            canvas.set_attribute("height", "480").unwrap_throw();
             App::<WebAppCallback, NotSupportedModelLoaderGui>::run(
                 WebAppCallback { canvas },
                 NotSupportedModelLoaderGui::default(),
