@@ -267,11 +267,11 @@ pub struct PmxTexture {
 #[derive(Debug, Clone, BinRead)]
 #[br(map = Self::from_bytes)]
 pub struct PmxDrawingFlags {
-    no_cull: bool,
-    ground_shadow: bool,
-    draw_shadow: bool,
-    receive_shadow: bool,
-    has_edge: bool,
+    pub no_cull: bool,
+    pub ground_shadow: bool,
+    pub draw_shadow: bool,
+    pub receive_shadow: bool,
+    pub has_edge: bool,
     #[skip]
     __: B3,
 }
@@ -331,20 +331,20 @@ pub struct PmxMaterial {
 #[derive(Debug, Clone, BinRead)]
 #[br(map = Self::from_bytes)]
 pub struct PmxBoneFlags {
-    indexed_tail_position: bool,
-    rotatable: bool,
-    translatable: bool,
-    is_visible: bool,
-    enabled: bool,
-    ik: bool,
+    pub indexed_tail_position: bool,
+    pub rotatable: bool,
+    pub translatable: bool,
+    pub is_visible: bool,
+    pub enabled: bool,
+    pub ik: bool,
     #[skip]
     __: B2,
-    inherit_rotation: bool,
-    inherit_translation: bool,
-    fixed_axis: bool,
-    local_coordinate: bool,
-    physics_after_deform: bool,
-    external_parent_deform: bool,
+    pub inherit_rotation: bool,
+    pub inherit_translation: bool,
+    pub fixed_axis: bool,
+    pub local_coordinate: bool,
+    pub physics_after_deform: bool,
+    pub external_parent_deform: bool,
     #[skip]
     __: B2,
 }
@@ -365,8 +365,8 @@ pub enum PmxBoneTailPosition {
 #[br(import { header: &PmxFileHeader } )]
 pub struct PmxBoneInheritParent {
     #[br(args(header.globals.bone_index_type))]
-    inherit_parent_index: PmxIndex,
-    inherit_parent_influence: f32,
+    pub inherit_parent_index: PmxIndex,
+    pub inherit_parent_influence: f32,
 }
 
 #[derive(Debug, Clone, BinRead)]
@@ -384,48 +384,48 @@ pub enum PmxBoneIkLinkLimit {
 #[br(import { header: &PmxFileHeader } )]
 pub struct PmxBoneIkLink {
     #[br(args(header.globals.bone_index_type))]
-    bone_index: PmxIndex,
-    limits: PmxBoneIkLinkLimit,
+    pub bone_index: PmxIndex,
+    pub limits: PmxBoneIkLinkLimit,
 }
 
 #[derive(Debug, Clone, BinRead)]
 #[br(import { header: &PmxFileHeader } )]
 pub struct PmxBoneIk {
     #[br(args(header.globals.bone_index_type))]
-    target_index: PmxIndex,
+    pub target_index: PmxIndex,
     #[br(assert(loop_count >= 0))]
-    loop_count: i32,
-    limit_radian: f32,
+    pub loop_count: i32,
+    pub limit_radian: f32,
     #[br(assert(link_count >= 0))]
-    link_count: i32,
+    pub link_count: i32,
     #[br(args { count: link_count as usize, inner: binrw::args! { header: &header } })]
-    links: Vec<PmxBoneIkLink>,
+    pub links: Vec<PmxBoneIkLink>,
 }
 
 #[derive(Debug, Clone, BinRead)]
 #[br(import { header: &PmxFileHeader } )]
 pub struct PmxBone {
     #[br(try_map = |str: PmxText| str.try_into_string(header.globals.text_encoding))]
-    bone_name_local: String,
+    pub bone_name_local: String,
     #[br(try_map = |str: PmxText| str.try_into_string(header.globals.text_encoding))]
-    bone_name_universal: String,
-    position: [f32; 3],
+    pub bone_name_universal: String,
+    pub position: [f32; 3],
     #[br(args(header.globals.bone_index_type))]
-    parent_bone_index: PmxIndex,
-    layer: i32,
-    flags: PmxBoneFlags,
+    pub parent_bone_index: PmxIndex,
+    pub layer: i32,
+    pub flags: PmxBoneFlags,
     #[br(args { header, flags: &flags })]
-    tail_position: PmxBoneTailPosition,
+    pub tail_position: PmxBoneTailPosition,
     #[br(if(flags.inherit_rotation() || flags.inherit_translation()), args { header })]
-    inherit_parent: Option<PmxBoneInheritParent>,
+    pub inherit_parent: Option<PmxBoneInheritParent>,
     #[br(if(flags.fixed_axis()))]
-    axis_direction: Option<[f32; 3]>,
+    pub axis_direction: Option<[f32; 3]>,
     #[br(if(flags.local_coordinate()))]
-    local_coordinate: Option<[[f32; 3]; 2]>,
+    pub local_coordinate: Option<[[f32; 3]; 2]>,
     #[br(if(flags.external_parent_deform()), args(header.globals.bone_index_type))]
-    external_parent_index: Option<PmxIndex>,
+    pub external_parent_index: Option<PmxIndex>,
     #[br(if(flags.ik()), args { header })]
-    ik: Option<PmxBoneIk>,
+    pub ik: Option<PmxBoneIk>,
 }
 
 #[derive(Debug, Clone, Copy, BinRead, PartialEq, Eq)]
@@ -472,68 +472,68 @@ pub enum PmxMorphType {
 #[br(import { header: &PmxFileHeader } )]
 pub struct PmxGroupMorphData {
     #[br(args(header.globals.morph_index_type))]
-    morph_index: PmxIndex,
-    influence: f32,
+    pub morph_index: PmxIndex,
+    pub influence: f32,
 }
 
 #[derive(Debug, Clone, BinRead)]
 #[br(import { header: &PmxFileHeader } )]
 pub struct PmxVertexMorphData {
     #[br(args(header.globals.vertex_index_type))]
-    vertex_index: PmxIndex,
-    translation: [f32; 3],
+    pub vertex_index: PmxIndex,
+    pub translation: [f32; 3],
 }
 
 #[derive(Debug, Clone, BinRead)]
 #[br(import { header: &PmxFileHeader } )]
 pub struct PmxBoneMorphData {
     #[br(args(header.globals.bone_index_type))]
-    bone_index: PmxIndex,
-    translation: [f32; 3],
-    rotation: [f32; 3],
+    pub bone_index: PmxIndex,
+    pub translation: [f32; 3],
+    pub rotation: [f32; 3],
 }
 
 #[derive(Debug, Clone, BinRead)]
 #[br(import { header: &PmxFileHeader } )]
 pub struct PmxUvMorphData {
     #[br(args(header.globals.vertex_index_type))]
-    vertex_index: PmxIndex,
-    floats: [f32; 4],
+    pub vertex_index: PmxIndex,
+    pub floats: [f32; 4],
 }
 
 #[derive(Debug, Clone, BinRead)]
 #[br(import { header: &PmxFileHeader } )]
 pub struct PmxMaterialMorphData {
     #[br(args(header.globals.material_index_type))]
-    material_index: PmxIndex,
-    unknown: i8,
-    diffuse: [f32; 4],
-    specular: [f32; 3],
-    specularity: f32,
-    ambient: [f32; 3],
-    edge_color: [f32; 4],
-    edge_size: f32,
-    texture_tint: [f32; 4],
-    environment_tint: [f32; 4],
-    toon_tint: [f32; 4],
+    pub material_index: PmxIndex,
+    pub unknown: i8,
+    pub diffuse: [f32; 4],
+    pub specular: [f32; 3],
+    pub specularity: f32,
+    pub ambient: [f32; 3],
+    pub edge_color: [f32; 4],
+    pub edge_size: f32,
+    pub texture_tint: [f32; 4],
+    pub environment_tint: [f32; 4],
+    pub toon_tint: [f32; 4],
 }
 
 #[derive(Debug, Clone, BinRead)]
 #[br(import { header: &PmxFileHeader } )]
 pub struct PmxFlipMorphData {
     #[br(args(header.globals.morph_index_type))]
-    morph_index: PmxIndex,
-    influence: f32,
+    pub morph_index: PmxIndex,
+    pub influence: f32,
 }
 
 #[derive(Debug, Clone, BinRead)]
 #[br(import { header: &PmxFileHeader } )]
 pub struct PmxImpulseMorphData {
     #[br(args(header.globals.rigidbody_index_type))]
-    rigidbody_index: PmxIndex,
-    local_flag: i8,
-    movement_speed: [f32; 3],
-    rotation_torque: [f32; 3],
+    pub rigidbody_index: PmxIndex,
+    pub local_flag: i8,
+    pub movement_speed: [f32; 3],
+    pub rotation_torque: [f32; 3],
 }
 
 #[derive(Debug, Clone, BinRead)]
@@ -600,15 +600,15 @@ pub enum PmxMorphOffsetData {
 #[br(import { header: &PmxFileHeader } )]
 pub struct PmxMorph {
     #[br(try_map = |str: PmxText| str.try_into_string(header.globals.text_encoding))]
-    morph_name_local: String,
+    pub morph_name_local: String,
     #[br(try_map = |str: PmxText| str.try_into_string(header.globals.text_encoding))]
-    morph_name_universal: String,
-    panel_type: PmxMorphPanelType,
-    morph_type: PmxMorphType,
+    pub morph_name_universal: String,
+    pub panel_type: PmxMorphPanelType,
+    pub morph_type: PmxMorphType,
     #[br(assert(offset_size > 0))]
-    offset_size: i32,
+    pub offset_size: i32,
     #[br(args { count: offset_size as usize, inner: binrw::args! { morph_type, header }})]
-    offset_data: Vec<PmxMorphOffsetData>,
+    pub offset_data: Vec<PmxMorphOffsetData>,
 }
 
 #[derive(Debug, Clone, Copy, BinRead, PartialEq, Eq)]
@@ -637,24 +637,24 @@ pub enum PmxFrameData {
 #[derive(Debug, Clone, BinRead)]
 #[br(import { header: &PmxFileHeader } )]
 pub struct PmxFrameItem {
-    frame_type: PmxFrameType,
+    pub frame_type: PmxFrameType,
     #[br(args { header, frame_type })]
-    frame_data: PmxFrameData,
+    pub frame_data: PmxFrameData,
 }
 
 #[derive(Debug, Clone, BinRead)]
 #[br(import { header: &PmxFileHeader } )]
 pub struct PmxDisplayFrame {
     #[br(try_map = |str: PmxText| str.try_into_string(header.globals.text_encoding))]
-    display_name_local: String,
+    pub display_name_local: String,
     #[br(try_map = |str: PmxText| str.try_into_string(header.globals.text_encoding))]
-    display_name_universal: String,
+    pub display_name_universal: String,
     #[br(try_map = |num: u8| match num { 0 => Ok(false), 1 => Ok(true), other => Err(PmxFormatError::BadBoolean(other)) })]
-    special_frame: bool,
+    pub special_frame: bool,
     #[br(assert(frame_count >= 0))]
-    frame_count: i32,
+    pub frame_count: i32,
     #[br(args { count: frame_count as usize, inner: binrw::args! { header: &header } })]
-    frames: Vec<PmxFrameItem>,
+    pub frames: Vec<PmxFrameItem>,
 }
 
 #[derive(Debug, Clone, Copy, BinRead, PartialEq, Eq)]
@@ -681,23 +681,23 @@ pub enum PmxPhysicsMode {
 #[br(import { header: &PmxFileHeader } )]
 pub struct PmxRigidbody {
     #[br(try_map = |str: PmxText| str.try_into_string(header.globals.text_encoding))]
-    rigidbody_name_local: String,
+    pub rigidbody_name_local: String,
     #[br(try_map = |str: PmxText| str.try_into_string(header.globals.text_encoding))]
-    rigidbody_name_universal: String,
+    pub rigidbody_name_universal: String,
     #[br(args(header.globals.bone_index_type))]
-    related_bone_index: PmxIndex,
-    group_id: i8,
-    no_collision_group: i16,
-    shape: PmxShapeType,
-    shape_size: [f32; 3],
-    shape_position: [f32; 3],
-    shape_rotation: [f32; 3],
-    mass: f32,
-    move_attenuation: f32,
-    rotation_damping: f32,
-    repulsion: f32,
-    friction_force: f32,
-    physics_mode: PmxPhysicsMode,
+    pub related_bone_index: PmxIndex,
+    pub group_id: i8,
+    pub no_collision_group: i16,
+    pub shape: PmxShapeType,
+    pub shape_size: [f32; 3],
+    pub shape_position: [f32; 3],
+    pub shape_rotation: [f32; 3],
+    pub mass: f32,
+    pub move_attenuation: f32,
+    pub rotation_damping: f32,
+    pub repulsion: f32,
+    pub friction_force: f32,
+    pub physics_mode: PmxPhysicsMode,
 }
 
 #[derive(Debug, Clone, Copy, BinRead, PartialEq, Eq)]
@@ -719,22 +719,22 @@ pub enum PmxJointType {
 #[br(import { header: &PmxFileHeader } )]
 pub struct PmxJoint {
     #[br(try_map = |str: PmxText| str.try_into_string(header.globals.text_encoding))]
-    joint_name_local: String,
+    pub joint_name_local: String,
     #[br(try_map = |str: PmxText| str.try_into_string(header.globals.text_encoding))]
-    joint_name_universal: String,
-    joint_type: PmxJointType,
+    pub joint_name_universal: String,
+    pub joint_type: PmxJointType,
     #[br(args(header.globals.rigidbody_index_type))]
-    rigidbody_index_a: PmxIndex,
+    pub xsrigidbody_index_a: PmxIndex,
     #[br(args(header.globals.rigidbody_index_type))]
-    rigidbody_index_b: PmxIndex,
-    position: [f32; 3],
-    rotation: [f32; 3],
-    position_minimum: [f32; 3],
-    position_maximum: [f32; 3],
-    rotation_minimum: [f32; 3],
-    rotation_maximum: [f32; 3],
-    position_spring: [f32; 3],
-    rotation_spring: [f32; 3],
+    pub rigidbody_index_b: PmxIndex,
+    pub position: [f32; 3],
+    pub rotation: [f32; 3],
+    pub position_minimum: [f32; 3],
+    pub position_maximum: [f32; 3],
+    pub rotation_minimum: [f32; 3],
+    pub rotation_maximum: [f32; 3],
+    pub position_spring: [f32; 3],
+    pub rotation_spring: [f32; 3],
 }
 
 #[derive(Debug, Clone, BinRead)]

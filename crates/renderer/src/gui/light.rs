@@ -1,6 +1,6 @@
 use std::sync::mpsc::Sender;
 
-use egui::{color_picker::color_edit_button_rgb, Align2, Context, Slider, Window};
+use egui::{color_picker::color_edit_button_rgb, Align2, Context, Slider, SliderClamping, Window};
 use glam::Vec3;
 
 use crate::renderer::{uniform::light::GlobalLightParam, RendererState};
@@ -38,7 +38,8 @@ pub fn light_param(
                         param.start_strength as f64
                     }
                 })
-                .text("Start Strength"),
+                .text("Start Strength")
+                .clamping(SliderClamping::Edits),
             );
             ui.add(
                 Slider::from_get_set(0.0..=1.0, |value| {
@@ -52,7 +53,8 @@ pub fn light_param(
                         param.stop_strength as f64
                     }
                 })
-                .text("Stop Strength"),
+                .text("Stop Strength")
+                .clamping(SliderClamping::Edits),
             );
             ui.add(
                 Slider::from_get_set(0.0..=1.0, |value| {
@@ -66,7 +68,8 @@ pub fn light_param(
                         param.max_strength as f64
                     }
                 })
-                .text("Max Strength"),
+                .text("Max Strength")
+                .clamping(SliderClamping::Edits),
             );
             ui.add(
                 Slider::from_get_set(0.0..=1.0, |value| {
@@ -81,7 +84,8 @@ pub fn light_param(
                         param.border_start_strength as f64
                     }
                 })
-                .text("Border Start Strength"),
+                .text("Border Start Strength")
+                .clamping(SliderClamping::Edits),
             );
             ui.add(
                 Slider::from_get_set(0.0..=1.0, |value| {
@@ -96,7 +100,8 @@ pub fn light_param(
                         param.border_stop_strength as f64
                     }
                 })
-                .text("Border Stop Strength"),
+                .text("Border Stop Strength")
+                .clamping(SliderClamping::Edits),
             );
             ui.add(
                 Slider::from_get_set(0.0..=1.0, |value| {
@@ -110,7 +115,8 @@ pub fn light_param(
                         param.border_max_strength as f64
                     }
                 })
-                .text("Border Max Strength"),
+                .text("Border Max Strength")
+                .clamping(SliderClamping::Edits),
             );
             ui.add(
                 Slider::from_get_set(0.0..=1.0, |value| {
@@ -124,7 +130,8 @@ pub fn light_param(
                         param.ambient_strength as f64
                     }
                 })
-                .text("Ambient Strength"),
+                .text("Ambient Strength")
+                .clamping(SliderClamping::Edits),
             );
         });
 }

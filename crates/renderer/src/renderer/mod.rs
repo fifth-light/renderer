@@ -349,7 +349,7 @@ impl RendererState {
             default_instance_bind_group,
             empty_texture_group,
             light_uniform,
-            background_color: Vec3::new(0.0, 0.0, 0.0),
+            background_color: Vec3::new(0.8, 0.8, 1.0),
             flashlight: None,
         }
     }

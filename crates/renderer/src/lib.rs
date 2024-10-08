@@ -4,7 +4,7 @@ pub mod perf;
 pub mod renderer;
 
 use asset::{
-    loader::{self, obj::ObjLoader, pmx::PmxLoader},
+    loader::{self, obj::ObjLoader, pmx::load_pmx},
     node::DecomposedTransform,
 };
 use egui::{Context, ViewportId};
@@ -246,20 +246,7 @@ impl<'a, ModelLoader: ModelLoaderGui> State<'a, ModelLoader> {
 
         let animations = asset_loader.load_animations(animations);
 
-        if path.to_string_lossy().contains("aris") {
-            let transform = TransformNode::from_decomposed_transform(
-                DecomposedTransform {
-                    rotation: Quat::from_euler(EulerRot::XYZ, PI / 2.0, 0.0, 0.0),
-                    ..Default::default()
-                },
-                scene_group,
-            );
-            self.renderer
-                .add_node(RenderNodeItem::Transform(Box::new(transform)));
-        } else {
-            self.renderer.add_node(scene_group);
-        }
-
+        self.renderer.add_node(scene_group);
         for animation in animations {
             self.renderer.add_animation_group(animation);
         }
@@ -268,7 +255,6 @@ impl<'a, ModelLoader: ModelLoaderGui> State<'a, ModelLoader> {
     fn load_pmx(&mut self, path: PathBuf) {
         let mut asset_loader =
             RendererAssetLoader::new(self.renderer.state.bind_group_layout(), &mut self.pipelines);
-        let mut pmx_loader = PmxLoader::default();
         let base_dir = match path.parent() {
             Some(base_dir) => base_dir,
             None => {
@@ -279,7 +265,7 @@ impl<'a, ModelLoader: ModelLoaderGui> State<'a, ModelLoader> {
                 return;
             }
         };
-        let scene_asset = match pmx_loader.load(base_dir, &path) {
+        let scene_asset = match load_pmx(base_dir, &path) {
             Ok(asset) => asset,
             Err(err) => {
                 self.gui_state
@@ -308,13 +294,10 @@ impl<'a, ModelLoader: ModelLoaderGui> State<'a, ModelLoader> {
             &self.device,
             self.renderer.state.bind_group_layout(),
             &mut pipelines,
-            LightParam::Directional {
-                color: Vec3::new(1.0, 1.0, 0.0),
-                constant: 1.0,
-                linear: 0.045,
-                quadratic: 0.0075,
-                range_inner: (10.0f32).to_radians(),
-                range_outer: (25.0f32).to_radians(),
+            LightParam::Parallel {
+                color: Vec3::new(1.0, 1.0, 0.9),
+                direction: Vec3::new(0.0, 1.0, 0.0),
+                strength: 0.5,
             },
             true,
         );

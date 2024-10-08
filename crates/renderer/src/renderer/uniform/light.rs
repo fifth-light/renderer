@@ -62,11 +62,11 @@ impl Default for GlobalLightParam {
         Self {
             start_strength: 0.30,
             stop_strength: 1.00,
-            max_strength: 1.00,
+            max_strength: 0.80,
             border_start_strength: 0.40,
             border_stop_strength: 0.80,
-            border_max_strength: 0.00,
-            ambient_strength: 0.00,
+            border_max_strength: 0.20,
+            ambient_strength: 0.60,
         }
     }
 }

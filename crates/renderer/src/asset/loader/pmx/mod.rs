@@ -1,18 +1,22 @@
 use std::{
+    cell::RefCell,
+    collections::BTreeMap,
     fmt::{Display, Formatter},
     fs::File,
     io,
-    path::Path,
+    path::{Path, PathBuf},
+    rc::Rc,
     sync::Arc,
 };
 
 use binrw::BinRead;
 use format::{PmxFile, PmxMaterial, PmxTexture};
+use glam::Vec3;
 
 use crate::asset::{
     material::MaterialAsset,
     mesh::MeshAsset,
-    node::NodeAsset,
+    node::{DecomposedTransform, NodeAsset, NodeAssetId, NodeTransform},
     primitive::{PrimitiveAsset, PrimitiveAssetMode},
     scene::SceneAsset,
     texture::{SamplerAsset, TextureAsset, TextureAssetId},
@@ -69,18 +73,34 @@ impl From<TextureLoadError> for PmxLoadError {
     }
 }
 
-#[derive(Default)]
-pub struct PmxLoader {
-    texture_loader: TextureLoader,
+struct BoneItem {
+    id: NodeAssetId,
+    name: String,
+    transform: Vec3,
+    children: Vec<Rc<RefCell<BoneItem>>>,
 }
 
-impl PmxLoader {
-    pub fn load_texture(
-        &mut self,
-        base_path: &Path,
-        texture: &PmxTexture,
-    ) -> Result<Arc<TextureAsset>, PmxLoadError> {
-        let path = base_path.join(&texture.path);
+struct PmxLoader<'a> {
+    texture_loader: TextureLoader,
+    path: &'a Path,
+    base_path: &'a Path,
+}
+
+impl<'a> PmxLoader<'a> {
+    fn new(base_path: &'a Path, path: &'a Path) -> Self {
+        Self {
+            texture_loader: TextureLoader::default(),
+            path,
+            base_path,
+        }
+    }
+
+    fn path(&self) -> PathBuf {
+        self.path.to_path_buf()
+    }
+
+    fn load_texture(&mut self, texture: &PmxTexture) -> Result<Arc<TextureAsset>, PmxLoadError> {
+        let path = self.base_path.join(&texture.path);
         let id = TextureAssetId::from_path(&path);
         let texture_asset =
             self.texture_loader
@@ -88,14 +108,13 @@ impl PmxLoader {
         Ok(texture_asset)
     }
 
-    pub fn load_material(
+    fn load_material(
         &mut self,
-        base_path: &Path,
         file: &PmxFile,
         material: &PmxMaterial,
     ) -> Result<MaterialAsset, PmxLoadError> {
         let texture = match material.texture_index.0 {
-            Some(index) => Some(self.load_texture(base_path, &file.textures[index])?),
+            Some(index) => Some(self.load_texture(&file.textures[index])?),
             None => None,
         };
         Ok(MaterialAsset {
@@ -106,16 +125,69 @@ impl PmxLoader {
         })
     }
 
-    pub fn load_surfaces(
-        &mut self,
-        base_path: &Path,
-        path: &Path,
-        file: &PmxFile,
-    ) -> Result<Vec<NodeAsset>, PmxLoadError> {
+    fn bone_id(&self, file: &PmxFile, index: usize) -> NodeAssetId {
+        (self.path(), file.surfaces_count as usize + index).into()
+    }
+
+    fn load_bones(&self, file: &PmxFile) -> Vec<NodeAsset> {
+        let mut bones = BTreeMap::new();
+        let mut bone_references = BTreeMap::new();
+        for (index, bone) in file.bones.iter().enumerate() {
+            let item = BoneItem {
+                id: self.bone_id(file, index),
+                name: bone.bone_name_local.clone(),
+                transform: Vec3::from_array(bone.position),
+                children: Vec::new(),
+            };
+            let item = Rc::new(RefCell::new(item));
+            bone_references.insert(index, item.clone());
+            bones.insert(index, item);
+        }
+
+        for (index, bone) in file.bones.iter().enumerate() {
+            if let Some(parent_index) = bone.parent_bone_index.0 {
+                let bone = bones[&index].clone();
+                let mut parent = (*bone_references[&parent_index]).borrow_mut();
+                parent.children.push(bone)
+            }
+        }
+
+        drop(bone_references);
+
+        fn convert_bone(item: BoneItem) -> NodeAsset {
+            NodeAsset {
+                id: item.id,
+                name: Some(item.name),
+                transform: Some(NodeTransform::Decomposed(DecomposedTransform {
+                    translation: item.transform,
+                    ..Default::default()
+                })),
+                mesh: None,
+                skin: None,
+                camera: None,
+                has_animation: false,
+                children: item
+                    .children
+                    .into_iter()
+                    .map(|item| convert_bone(Rc::into_inner(item).unwrap().into_inner()))
+                    .collect(),
+            }
+        }
+        bones
+            .into_values()
+            .map(|item| convert_bone(Rc::into_inner(item).unwrap().into_inner()))
+            .collect()
+    }
+
+    fn surface_id(&self, index: usize) -> NodeAssetId {
+        (self.path(), index).into()
+    }
+
+    fn load_surfaces(&mut self, file: &PmxFile) -> Result<Vec<NodeAsset>, PmxLoadError> {
         let mut surfaces_next = file.surfaces.as_slice();
         let mut nodes = Vec::new();
         for (index, material) in file.materials.iter().enumerate() {
-            let material_asset = self.load_material(base_path, file, material)?;
+            let material_asset = self.load_material(file, material)?;
             let surface_count = material.surface_count as usize;
             if surfaces_next.len() < surface_count {
                 return Err(PmxLoadError::NoSurfaceLeft {
@@ -156,7 +228,7 @@ impl PmxLoader {
                 primitives: vec![primitive],
             };
             let node = NodeAsset {
-                id: (path.to_owned().to_path_buf(), index).into(),
+                id: self.surface_id(index),
                 name: None,
                 transform: None,
                 mesh: Some(mesh),
@@ -171,23 +243,22 @@ impl PmxLoader {
         Ok(nodes)
     }
 
-    pub fn load_file(
-        &mut self,
-        base_path: &Path,
-        path: &Path,
-        file: &PmxFile,
-    ) -> Result<SceneAsset, PmxLoadError> {
-        let surfaces = self.load_surfaces(base_path, path, file)?;
+    fn load_file(&mut self, file: PmxFile) -> Result<SceneAsset, PmxLoadError> {
+        let surfaces = self.load_surfaces(&file)?;
+        let bones = self.load_bones(&file);
+        // TODO: calculate the correct nodes and skinned_nodes
         Ok(SceneAsset {
             name: None,
             nodes: surfaces,
+            skinned_nodes: bones,
             ..Default::default()
         })
     }
+}
 
-    pub fn load(&mut self, base_path: &Path, path: &Path) -> Result<SceneAsset, PmxLoadError> {
-        let mut file = File::open(path)?;
-        let file = PmxFile::read_le(&mut file)?;
-        self.load_file(base_path, path, &file)
-    }
+pub fn load_pmx(base_path: &Path, path: &Path) -> Result<SceneAsset, PmxLoadError> {
+    let mut loader = PmxLoader::new(base_path, path);
+    let mut file = File::open(path)?;
+    let file = PmxFile::read_le(&mut file)?;
+    loader.load_file(file)
 }
