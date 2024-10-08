@@ -119,6 +119,7 @@ impl<'a> PmxLoader<'a> {
         };
         Ok(MaterialAsset {
             name: Some(material.material_name_local.clone()),
+            unlit: false,
             diffuse_color: Some(material.diffuse_color),
             diffuse_texture: texture,
             alpha_mode: None,

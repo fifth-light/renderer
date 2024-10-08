@@ -359,13 +359,45 @@ fn light_process(in_color: vec4f, normal: vec3f, tangent: vec3f, position: vec3f
     return vec4f(result, alpha);
 }
 
+fn outline_color_process(color: vec3f) -> vec3f {
+    return color * 0.1;
+}
+
 @fragment
 fn color_fs_main(in: ColorVertexOutput) -> @location(0) vec4f {
-    return light_process(in.color, in.normal, in.tangent, in.position);
+    return in.color;
 }
 
 @fragment
 fn texture_fs_main(in: TextureVertexOutput) -> @location(0) vec4f {
+    let in_color = textureSample(diffuse_texture, diffuse_sampler, in.tex_coords);
+    if in_color.a == 0.0 {
+        discard;
+    }
+    return in_color;
+}
+
+@fragment
+fn color_outline_fs_main(in: ColorVertexOutput) -> @location(0) vec4f {
+    return vec4(outline_color_process(in.color.rgb), in.color.a);
+}
+
+@fragment
+fn texture_outline_fs_main(in: TextureVertexOutput) -> @location(0) vec4f {
+    let in_color = textureSample(diffuse_texture, diffuse_sampler, in.tex_coords);
+    if in_color.a == 0.0 {
+        discard;
+    }
+    return vec4(outline_color_process(in_color.rgb), in_color.a);
+}
+
+@fragment
+fn color_light_fs_main(in: ColorVertexOutput) -> @location(0) vec4f {
+    return light_process(in.color, in.normal, in.tangent, in.position);
+}
+
+@fragment
+fn texture_light_fs_main(in: TextureVertexOutput) -> @location(0) vec4f {
     let color = textureSample(diffuse_texture, diffuse_sampler, in.tex_coords);
     if color.a == 0.0 {
         discard;
@@ -373,18 +405,14 @@ fn texture_fs_main(in: TextureVertexOutput) -> @location(0) vec4f {
     return light_process(color, in.normal, in.tangent, in.position);
 }
 
-fn outline_color_process(color: vec3f) -> vec3f {
-    return color * 0.1;
-}
-
 @fragment
-fn color_outline_fs_main(in: ColorVertexOutput) -> @location(0) vec4f {
+fn color_light_outline_fs_main(in: ColorVertexOutput) -> @location(0) vec4f {
     let color = light_process(in.color, in.normal, in.tangent, in.position);
     return vec4(outline_color_process(color.rgb), color.a);
 }
 
 @fragment
-fn texture_outline_fs_main(in: TextureVertexOutput) -> @location(0) vec4f {
+fn texture_light_outline_fs_main(in: TextureVertexOutput) -> @location(0) vec4f {
     let in_color = textureSample(diffuse_texture, diffuse_sampler, in.tex_coords);
     if in_color.a == 0.0 {
         discard;

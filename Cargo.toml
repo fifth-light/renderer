@@ -10,7 +10,13 @@ members = [
 [workspace.dependencies]
 bytemuck = { version = "1", features = ["derive"] }
 glam = "0.29"
-gltf = { version = "1", features = ["import"] }
+gltf = { version = "1", features = [
+    "import",
+    "KHR_materials_unlit",
+    "KHR_texture_transform",
+    "KHR_materials_emissive_strength",
+    "extensions",
+] }
 image = "0.25"
 log = "0.4"
 pollster = "0.3"

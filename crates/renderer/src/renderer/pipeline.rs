@@ -190,6 +190,7 @@ pub struct PipelineIdentifier {
     pub shader: ShaderType,
     pub primitive_topology: PrimitiveTopology,
     pub alpha_mode: ShaderAlphaMode,
+    pub lit: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -227,16 +228,24 @@ impl Pipelines {
         outline: bool,
     ) -> RenderPipelineItem {
         #[rustfmt::skip]
-        let (vertex_entry_name, fragment_entry_name) = match (identifier.shader, outline) {
-            (ShaderType::Light, _) => ("color_vs_main", "light_fs_main"),
-            (ShaderType::Color, false) => ("color_vs_main", "color_fs_main"),
-            (ShaderType::Texture, false) => ("texture_vs_main", "texture_fs_main"),
-            (ShaderType::ColorSkin, false) => ("color_skin_vs_main", "color_fs_main"),
-            (ShaderType::TextureSkin, false) => ("texture_skin_vs_main", "texture_fs_main"),
-            (ShaderType::Color, true) => ("color_outline_vs_main", "color_outline_fs_main"),
-            (ShaderType::Texture, true) => ("texture_outline_vs_main", "texture_outline_fs_main"),
-            (ShaderType::ColorSkin, true) => ("color_outline_skin_vs_main", "color_outline_fs_main"),
-            (ShaderType::TextureSkin, true) => ("texture_outline_skin_vs_main", "texture_outline_fs_main"),
+        let (vertex_entry_name, fragment_entry_name) = match (identifier.shader, identifier.lit, outline) {
+            (ShaderType::Light, _, _) => ("color_vs_main", "light_fs_main"),
+            (ShaderType::Color, false, false) => ("color_vs_main", "color_fs_main"),
+            (ShaderType::Color, true, false) => ("color_vs_main", "color_light_fs_main"),
+            (ShaderType::Texture, false, false) => ("texture_vs_main", "texture_fs_main"),
+            (ShaderType::Texture, true, false) => ("texture_vs_main", "texture_light_fs_main"),
+            (ShaderType::ColorSkin, false, false) => ("color_skin_vs_main", "color_fs_main"),
+            (ShaderType::ColorSkin, true, false) => ("color_skin_vs_main", "color_light_fs_main"),
+            (ShaderType::TextureSkin, false, false) => ("texture_skin_vs_main", "texture_fs_main"),
+            (ShaderType::TextureSkin, true, false) => ("texture_skin_vs_main", "texture_light_fs_main"),
+            (ShaderType::Color, false, true) => ("color_outline_vs_main", "color_outline_fs_main"),
+            (ShaderType::Color, true, true) => ("color_outline_vs_main", "color_light_outline_fs_main"),
+            (ShaderType::Texture, false, true) => ("texture_outline_vs_main", "texture_outline_fs_main"),
+            (ShaderType::Texture, true, true) => ("texture_outline_vs_main", "texture_light_outline_fs_main"),
+            (ShaderType::ColorSkin, false, true) => ("color_outline_skin_vs_main", "color_outline_fs_main"),
+            (ShaderType::ColorSkin, true, true) => ("color_outline_skin_vs_main", "color_light_outline_fs_main"),
+            (ShaderType::TextureSkin, false, true) => ("texture_outline_skin_vs_main", "texture_outline_fs_main"),
+            (ShaderType::TextureSkin, true, true) => ("texture_outline_skin_vs_main", "texture_light_outline_fs_main"),
         };
         RenderPipelineItem::new(
             device,

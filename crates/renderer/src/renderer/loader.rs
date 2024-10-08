@@ -106,6 +106,11 @@ impl<'a> RendererAssetLoader<'a> {
         let vertex_color = primitive.vertex_color;
         let tex_coords = primitive.tex_coords;
         let skins = primitive.skin;
+        let lit = primitive
+            .material
+            .as_ref()
+            .map(|material| !material.unlit)
+            .unwrap_or(true);
         let alpha_mode = primitive
             .material
             .as_ref()
@@ -290,6 +295,7 @@ impl<'a> RendererAssetLoader<'a> {
                 MaterialAlphaMode::Mask => ShaderAlphaMode::Mask,
                 MaterialAlphaMode::Blend => ShaderAlphaMode::Blend,
             },
+            lit,
         };
         let pipeline =
             self.pipelines

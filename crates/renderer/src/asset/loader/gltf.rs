@@ -40,7 +40,7 @@ use crate::asset::{
     },
 };
 
-use super::chunk_mat4;
+use super::{chunk_mat4, AssetLoadParams};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum AnimationPathType {
@@ -280,6 +280,7 @@ fn load_accessor_normalized(data: &GltfData, accessor: &Accessor) -> Vec<f32> {
 
 struct GltfDocumentLoader<'a> {
     data: &'a GltfData,
+    params: &'a AssetLoadParams,
     texture_cache: HashMap<usize, Arc<TextureAsset>>,
     animated_nodes: BTreeSet<usize>,
     joint_nodes: BTreeSet<usize>,
@@ -287,9 +288,10 @@ struct GltfDocumentLoader<'a> {
 }
 
 impl<'a> GltfDocumentLoader<'a> {
-    fn new(data: &'a GltfData) -> Self {
+    fn new(data: &'a GltfData, params: &'a AssetLoadParams) -> Self {
         Self {
             data,
+            params,
             texture_cache: HashMap::new(),
             animated_nodes: BTreeSet::new(),
             joint_nodes: BTreeSet::new(),
@@ -348,6 +350,7 @@ impl<'a> GltfDocumentLoader<'a> {
 
         MaterialAsset {
             name: material.name().map(str::to_string),
+            unlit: material.unlit() && !self.params.disable_unlit,
             diffuse_color: Some(diffuse_color),
             diffuse_texture,
             alpha_mode: Some(alpha_mode),
@@ -747,7 +750,10 @@ impl<'a> GltfDocumentLoader<'a> {
     }
 }
 
-pub fn load_from_path<P>(path: P) -> Result<(Vec<SceneAsset>, Vec<AnimationAsset>), gltf::Error>
+pub fn load_from_path<P>(
+    path: P,
+    params: &AssetLoadParams,
+) -> Result<(Vec<SceneAsset>, Vec<AnimationAsset>), gltf::Error>
 where
     P: AsRef<Path>,
 {
@@ -758,7 +764,7 @@ where
         buffers,
         images,
     };
-    let mut loader = GltfDocumentLoader::new(&data);
+    let mut loader = GltfDocumentLoader::new(&data, params);
     let result = loader.load(document);
     Ok(result)
 }

@@ -48,3 +48,16 @@ fn chunk_mat4(data: Vec<f32>) -> Vec<Mat4> {
         })
         .collect()
 }
+
+#[derive(Debug, Clone)]
+pub struct AssetLoadParams {
+    pub disable_unlit: bool,
+}
+
+impl Default for AssetLoadParams {
+    fn default() -> Self {
+        Self {
+            disable_unlit: false,
+        }
+    }
+}

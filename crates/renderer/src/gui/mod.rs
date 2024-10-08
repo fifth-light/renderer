@@ -11,6 +11,7 @@ use node_tree::node_tree;
 use perf::perf_info;
 
 use crate::{
+    asset::loader::AssetLoadParams,
     perf::PerformanceTracker,
     renderer::{camera::PositionController, uniform::light::GlobalLightParam, Renderer},
 };
@@ -28,11 +29,16 @@ mod perf;
 #[derive(Default)]
 pub struct GuiState {
     errors: Vec<String>,
+    asset_load_params: AssetLoadParams,
 }
 
 impl GuiState {
     pub fn add_error(&mut self, error: String) {
         self.errors.push(error)
+    }
+
+    pub fn asset_load_params(&self) -> &AssetLoadParams {
+        &self.asset_load_params
     }
 }
 
@@ -66,7 +72,9 @@ pub fn gui_main<ModelLoader: ModelLoaderGui>(
 ) {
     node_tree(ctx, param.renderer, param.gui_actions_tx);
     perf_info(ctx, param.perf_tracker);
-    param.model_loader.ui(ctx, param.gui_actions_tx);
+    param
+        .model_loader
+        .ui(ctx, &mut state.asset_load_params, param.gui_actions_tx);
     animation_items(
         ctx,
         param.time,

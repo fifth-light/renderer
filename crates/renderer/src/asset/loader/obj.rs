@@ -119,6 +119,7 @@ impl ObjLoader {
 
                     let material = MaterialAsset {
                         name: None,
+                        unlit: false,
                         diffuse_color: material.diffuse.map(pad_color_vec3_to_vec4),
                         diffuse_texture,
                         alpha_mode: None,

@@ -1,6 +1,7 @@
 use std::{sync::mpsc::Sender, thread};
 
 use renderer::{
+    asset::loader::AssetLoadParams,
     egui::{Align2, Context, Window},
     gui::{GuiAction, ModelLoaderGui},
     App, NoOpAppcallCallback,
@@ -12,11 +13,17 @@ use rfd::FileDialog;
 struct DesktopModelLoaderGui {}
 
 impl ModelLoaderGui for DesktopModelLoaderGui {
-    fn ui(&self, ctx: &Context, gui_actions_tx: &mut Sender<GuiAction>) {
+    fn ui(
+        &self,
+        ctx: &Context,
+        param: &mut AssetLoadParams,
+        gui_actions_tx: &mut Sender<GuiAction>,
+    ) {
         Window::new("Load Model")
             .resizable([false, false])
             .pivot(Align2::RIGHT_TOP)
             .show(ctx, |ui| {
+                ui.checkbox(&mut param.disable_unlit, "Disable unlit");
                 if ui.button("Load OBJ").clicked() {
                     let tx = gui_actions_tx.clone();
                     thread::spawn(move || {
@@ -28,12 +35,13 @@ impl ModelLoaderGui for DesktopModelLoaderGui {
                         }
                     });
                 }
-                if ui.button("Load GLTF").clicked() {
+                if ui.button("Load GLTF / VRM").clicked() {
                     let tx = gui_actions_tx.clone();
                     thread::spawn(move || {
                         if let Some(file) = FileDialog::new()
                             .add_filter("GLTF json file", &["gltf"])
                             .add_filter("GLTF binary file", &["glb"])
+                            .add_filter("VRM file", &["vrm"])
                             .pick_file()
                         {
                             let _ = tx.send(GuiAction::LoadGltf(file));

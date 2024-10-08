@@ -43,6 +43,7 @@ impl CrosshairNode {
                 shader: ShaderType::Light,
                 primitive_topology: PrimitiveTopology::LineList,
                 alpha_mode: ShaderAlphaMode::Opaque,
+                lit: false,
             },
             false,
         );

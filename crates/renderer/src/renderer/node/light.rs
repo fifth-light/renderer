@@ -131,6 +131,7 @@ impl LightNode {
                 shader: ShaderType::Light,
                 primitive_topology: PrimitiveTopology::TriangleList,
                 alpha_mode: ShaderAlphaMode::Opaque,
+                lit: false,
             },
             false,
         );

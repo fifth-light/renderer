@@ -4,7 +4,7 @@ pub mod perf;
 pub mod renderer;
 
 use asset::{
-    loader::{self, obj::ObjLoader, pmx::load_pmx},
+    loader::{self, obj::ObjLoader, pmx::load_pmx, AssetLoadParams},
     node::DecomposedTransform,
 };
 use egui::{Context, ViewportId};
@@ -226,10 +226,10 @@ impl<'a, ModelLoader: ModelLoaderGui> State<'a, ModelLoader> {
         self.renderer.add_node(mesh_node);
     }
 
-    fn load_gltf(&mut self, path: PathBuf) {
+    fn load_gltf(&mut self, path: PathBuf, params: &AssetLoadParams) {
         let mut asset_loader =
             RendererAssetLoader::new(self.renderer.state.bind_group_layout(), &mut self.pipelines);
-        let (scenes, animations) = match loader::gltf::load_from_path(&path) {
+        let (scenes, animations) = match loader::gltf::load_from_path(&path, params) {
             Ok(scenes) => scenes,
             Err(err) => {
                 self.gui_state
@@ -370,7 +370,10 @@ impl<'a, ModelLoader: ModelLoaderGui> State<'a, ModelLoader> {
         while let Ok(action) = self.gui_actions_rx.try_recv() {
             match action {
                 GuiAction::LoadObj(path) => self.load_obj(path),
-                GuiAction::LoadGltf(path) => self.load_gltf(path),
+                GuiAction::LoadGltf(path) => {
+                    let param = self.gui_state.asset_load_params().clone();
+                    self.load_gltf(path, &param);
+                }
                 GuiAction::LoadPmx(path) => self.load_pmx(path),
                 GuiAction::StopAnimation(id) => {
                     self.renderer
