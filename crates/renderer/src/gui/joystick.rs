@@ -77,6 +77,7 @@ impl<'a> Widget for Joystick<'a> {
                 Vec2::new(*self.value_x, *self.value_y),
                 self.outer_size,
             );
+            let (new_x, new_y) = normalize_pos(new_x, new_y);
             *self.value_x = new_x;
             *self.value_y = new_y;
         }
