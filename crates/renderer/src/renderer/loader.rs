@@ -13,13 +13,13 @@ use crate::{
     asset::{
         animation::{AnimationAsset, AnimationChannelAsset},
         camera::{CameraAsset, CameraProjectionAsset},
-        material::MaterialAlphaMode,
+        material::{MaterialAlphaMode, MaterialTexture},
         mesh::MeshAsset,
         node::{NodeAsset, NodeAssetId},
         primitive::{PrimitiveAsset, PrimitiveAssetMode},
         scene::SceneAsset,
         skin::{SkinAsset, SkinAssetId},
-        texture::{TextureAsset, TextureAssetId},
+        texture::TextureAssetId,
     },
     renderer::{
         index::IndexBuffer,
@@ -47,12 +47,15 @@ use super::{
     },
     pipeline::ShaderAlphaMode,
     tangent::calculate_tangent,
+    texture::TextureTransform,
+    uniform::texture::TextureUniformBuffer,
     vertex::{ColorSkinVertex, TextureSkinVertex},
-    RendererBindGroupLayout,
+    RendererBindGroupLayout, RendererGlobalDefaults,
 };
 
 pub struct RendererAssetLoader<'a> {
     bind_group_layouts: &'a RendererBindGroupLayout,
+    global_defaults: &'a RendererGlobalDefaults,
     texture_cache: HashMap<TextureAssetId, Arc<BindGroup>>,
     animate_nodes: HashMap<NodeAssetId, usize>,
     skins: HashMap<SkinAssetId, Arc<SkinData>>,
@@ -62,10 +65,12 @@ pub struct RendererAssetLoader<'a> {
 impl<'a> RendererAssetLoader<'a> {
     pub fn new(
         bind_group_layouts: &'a RendererBindGroupLayout,
+        global_defaults: &'a RendererGlobalDefaults,
         pipelines: &'a mut Pipelines,
     ) -> Self {
         Self {
             bind_group_layouts,
+            global_defaults,
             texture_cache: HashMap::new(),
             animate_nodes: HashMap::new(),
             skins: HashMap::new(),
@@ -77,17 +82,37 @@ impl<'a> RendererAssetLoader<'a> {
         &mut self,
         device: &Device,
         queue: &Queue,
-        asset: &TextureAsset,
+        asset: &MaterialTexture,
     ) -> Arc<BindGroup> {
-        if let Some(texture) = self.texture_cache.get(&asset.id) {
+        let transform = asset.transform.as_ref().map(|transform| TextureTransform {
+            offset: transform.offset,
+            rotation: transform.rotation,
+            scale: transform.scale,
+        });
+        if let Some(texture) = self.texture_cache.get(&asset.texture.id) {
             return texture.clone();
         }
-        let texture = TextureItem::from_asset(device, queue, asset, Some(&asset.id.to_string()));
-        let bind_group = Arc::new(
-            texture.create_bind_group(device, self.bind_group_layouts.texture_bind_layout()),
+        let texture = TextureItem::from_asset(
+            device,
+            queue,
+            &asset.texture,
+            Some(&asset.texture.id.to_string()),
         );
+        let bind_group = match transform {
+            Some(transform) => Arc::new(texture.create_bind_group(
+                device,
+                self.bind_group_layouts.texture_bind_layout(),
+                &TextureUniformBuffer::new(device, transform),
+            )),
+            None => Arc::new(texture.create_bind_group(
+                device,
+                self.bind_group_layouts.texture_bind_layout(),
+                &self.global_defaults.texture_transform_uniform,
+            )),
+        };
+
         self.texture_cache
-            .insert(asset.id.clone(), bind_group.clone());
+            .insert(asset.texture.id.clone(), bind_group.clone());
         bind_group
     }
 
@@ -123,9 +148,18 @@ impl<'a> RendererAssetLoader<'a> {
         let diffuse_texture = primitive
             .material
             .and_then(|material| material.diffuse_texture);
+        let tex_coords_index = diffuse_texture
+            .as_ref()
+            .and_then(|texture| {
+                texture
+                    .transform
+                    .as_ref()
+                    .and_then(|transform| transform.tex_coord)
+            })
+            .unwrap_or(0);
         let content = match (
             vertex_color.first(),
-            tex_coords.first(),
+            tex_coords.get(tex_coords_index as usize),
             skins.first(),
             diffuse_texture,
         ) {

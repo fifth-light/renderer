@@ -12,10 +12,11 @@ use node::{
     light::{LightData, LightParam},
     RenderNode, RenderNodeItem,
 };
-use texture::TextureItem;
+use texture::{TextureItem, TextureTransform};
 use uniform::{
     camera::CameraUniformBuffer,
     light::{GlobalLightParam, LightUniformBuffer},
+    texture::TextureUniformBuffer,
     transform::InstanceUniformBuffer,
 };
 use wgpu::{
@@ -118,7 +119,7 @@ impl<'a> OngoingRenderState<'a> {
             })
             .forget_lifetime();
 
-        let default_instance_bind_group = &renderer_state.default_instance_bind_group;
+        let default_instance_bind_group = renderer_state.global_defaults.instance_bind_group();
         render_pass.set_bind_group(0, &renderer_state.global_bind_group, &[]);
         render_pass.set_bind_group(1, default_instance_bind_group, &[]);
 
@@ -127,7 +128,7 @@ impl<'a> OngoingRenderState<'a> {
             render_pass,
             instance_bind_group: default_instance_bind_group,
             joint_bind_group: None,
-            empty_texture_bind_group: &renderer_state.empty_texture_group,
+            empty_texture_bind_group: &renderer_state.global_defaults.empty_texture_group,
         }
     }
 
@@ -195,6 +196,16 @@ impl RendererBindGroupLayout {
                     binding: 1,
                     visibility: ShaderStages::FRAGMENT,
                     ty: BindingType::Sampler(SamplerBindingType::Filtering),
+                    count: None,
+                },
+                BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: ShaderStages::VERTEX,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
                     count: None,
                 },
             ],
@@ -276,14 +287,60 @@ impl RendererBindGroupLayout {
     }
 }
 
-pub struct RendererState {
-    camera_buffer: CameraUniformBuffer,
-    bind_group_layout: RendererBindGroupLayout,
-
-    view_aspect: f32,
-
+pub struct RendererGlobalDefaults {
+    texture_transform_uniform: TextureUniformBuffer,
+    instance_bind_group: BindGroup,
     empty_texture_group: BindGroup,
-    light_uniform: LightUniformBuffer,
+}
+
+impl RendererGlobalDefaults {
+    pub fn new(
+        device: &Device,
+        queue: &Queue,
+        bind_group_layout: &RendererBindGroupLayout,
+    ) -> Self {
+        let default_instance_buffer = InstanceUniformBuffer::new(device, Mat4::IDENTITY);
+        let instance_bind_group = device.create_bind_group(&BindGroupDescriptor {
+            layout: &bind_group_layout.instance_uniform_layout,
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: default_instance_buffer.buffer().as_entire_binding(),
+            }],
+            label: Some("Default Instance Uniform Bind Group"),
+        });
+
+        let texture_transform_uniform =
+            TextureUniformBuffer::new(device, TextureTransform::default());
+
+        let empty_texture = TextureItem::empty(device, queue);
+        let empty_texture_group = empty_texture.create_bind_group(
+            device,
+            &bind_group_layout.texture_layout,
+            &texture_transform_uniform,
+        );
+
+        Self {
+            texture_transform_uniform,
+            instance_bind_group,
+            empty_texture_group,
+        }
+    }
+
+    pub fn texture_transform_uniform(&self) -> &TextureUniformBuffer {
+        &self.texture_transform_uniform
+    }
+
+    pub fn instance_bind_group(&self) -> &BindGroup {
+        &self.instance_bind_group
+    }
+
+    pub fn empty_texture_group(&self) -> &BindGroup {
+        &self.empty_texture_group
+    }
+}
+
+pub struct RendererState {
+    view_aspect: f32,
     background_color: Vec3,
 
     free_camera: Camera,
@@ -295,7 +352,10 @@ pub struct RendererState {
     depth_texture: DepthTexture,
 
     global_bind_group: BindGroup,
-    default_instance_bind_group: BindGroup,
+    global_defaults: RendererGlobalDefaults,
+    bind_group_layout: RendererBindGroupLayout,
+    camera_uniform: CameraUniformBuffer,
+    light_uniform: LightUniformBuffer,
 }
 
 impl RendererState {
@@ -304,7 +364,6 @@ impl RendererState {
         let camera = Camera::default();
         let camera_buffer = CameraUniformBuffer::new(device, &camera, view_aspect);
         let light_uniform = LightUniformBuffer::new(device, vec![], GlobalLightParam::default());
-        let default_instance_buffer = InstanceUniformBuffer::new(device, Mat4::IDENTITY);
 
         let depth_texture = DepthTexture::new(device, (size.width, size.height));
 
@@ -323,21 +382,11 @@ impl RendererState {
             ],
             label: Some("Global Uniform Bind Group"),
         });
-        let default_instance_bind_group = device.create_bind_group(&BindGroupDescriptor {
-            layout: &bind_group_layout.instance_uniform_layout,
-            entries: &[BindGroupEntry {
-                binding: 0,
-                resource: default_instance_buffer.buffer().as_entire_binding(),
-            }],
-            label: Some("Default Instance Uniform Bind Group"),
-        });
 
-        let empty_texture = TextureItem::empty(device, queue);
-        let empty_texture_group =
-            empty_texture.create_bind_group(device, &bind_group_layout.texture_layout);
+        let global_defaults = RendererGlobalDefaults::new(device, queue, &bind_group_layout);
 
         RendererState {
-            camera_buffer,
+            camera_uniform: camera_buffer,
             bind_group_layout,
             depth_texture,
             view_aspect,
@@ -346,16 +395,19 @@ impl RendererState {
             enabled_camera: None,
             enabled_camera_data: None,
             global_bind_group,
-            default_instance_bind_group,
-            empty_texture_group,
             light_uniform,
             background_color: Vec3::new(0.8, 0.8, 1.0),
             flashlight: None,
+            global_defaults,
         }
     }
 
     pub fn bind_group_layout(&self) -> &RendererBindGroupLayout {
         &self.bind_group_layout
+    }
+
+    pub fn global_defaults(&self) -> &RendererGlobalDefaults {
+        &self.global_defaults
     }
 
     pub fn update_camera(&mut self, func: impl FnOnce(&mut Camera)) {
@@ -403,7 +455,7 @@ impl RendererState {
     pub fn resize(&mut self, device: &Device, size: PhysicalSize<u32>) {
         self.view_aspect = size.width as f32 / size.height as f32;
         self.free_camera
-            .update_uniform(&mut self.camera_buffer, self.view_aspect);
+            .update_uniform(&mut self.camera_uniform, self.view_aspect);
 
         self.depth_texture = DepthTexture::new(device, (size.width, size.height));
     }
@@ -439,8 +491,8 @@ impl RendererState {
 
             if self.enabled_camera.is_some() {
                 if let Some(camera) = &mut self.enabled_camera_data {
-                    camera.update_uniform(&mut self.camera_buffer, self.view_aspect);
-                    self.camera_buffer.update(queue);
+                    camera.update_uniform(&mut self.camera_uniform, self.view_aspect);
+                    self.camera_uniform.update(queue);
                 } else {
                     warn!("There is a enabled camera, but no camera data is set in state.");
                     warn!("Is the camera in the node tree?");
@@ -448,8 +500,8 @@ impl RendererState {
             } else {
                 self.free_camera.update_aspect(self.view_aspect);
                 self.free_camera
-                    .update_uniform(&mut self.camera_buffer, self.view_aspect);
-                self.camera_buffer.update(queue);
+                    .update_uniform(&mut self.camera_uniform, self.view_aspect);
+                self.camera_uniform.update(queue);
             }
         }
     }

@@ -7,7 +7,7 @@ use std::{
 use tobj::{LoadError, LoadOptions};
 
 use crate::asset::{
-    material::MaterialAsset,
+    material::{MaterialAsset, MaterialTexture},
     mesh::MeshAsset,
     normal::calculate_normal,
     primitive::{PrimitiveAsset, PrimitiveAssetMode},
@@ -112,7 +112,10 @@ impl ObjLoader {
                             &path,
                             SamplerAsset::default(),
                         )?;
-                        Some(diffuse_texture)
+                        Some(MaterialTexture {
+                            texture: diffuse_texture,
+                            transform: None,
+                        })
                     } else {
                         None
                     };

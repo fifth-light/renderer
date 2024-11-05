@@ -1,8 +1,9 @@
 use std::iter;
 
+use glam::Vec2;
 use wgpu::{
-    AddressMode, BindGroup, BindGroupDescriptor, BindGroupLayout, BindingResource, Device,
-    Extent3d, FilterMode, ImageCopyTexture, ImageDataLayout, Origin3d, Queue, Sampler,
+    AddressMode, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindingResource,
+    Device, Extent3d, FilterMode, ImageCopyTexture, ImageDataLayout, Origin3d, Queue, Sampler,
     SamplerDescriptor, TextureAspect, TextureDescriptor, TextureDimension, TextureFormat,
     TextureUsages, TextureView, TextureViewDescriptor,
 };
@@ -11,6 +12,25 @@ use crate::asset::texture::{
     TextureAsset, TextureAssetFormat, TextureMagFilter, TextureMinFilter, TextureMipmapFilter,
     TextureWrappingMode,
 };
+
+use super::uniform::texture::TextureUniformBuffer;
+
+#[derive(Debug, Clone)]
+pub struct TextureTransform {
+    pub offset: Vec2,
+    pub rotation: f32,
+    pub scale: Vec2,
+}
+
+impl Default for TextureTransform {
+    fn default() -> Self {
+        Self {
+            offset: Vec2::ZERO,
+            rotation: 0.0,
+            scale: Vec2::ONE,
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct TextureItem {
@@ -173,17 +193,22 @@ impl TextureItem {
         &self,
         device: &Device,
         bind_group_layout: &BindGroupLayout,
+        transform_uniform: &TextureUniformBuffer,
     ) -> BindGroup {
         device.create_bind_group(&BindGroupDescriptor {
             layout: bind_group_layout,
             entries: &[
-                wgpu::BindGroupEntry {
+                BindGroupEntry {
                     binding: 0,
                     resource: BindingResource::TextureView(&self.texture_view),
                 },
-                wgpu::BindGroupEntry {
+                BindGroupEntry {
                     binding: 1,
                     resource: BindingResource::Sampler(&self.sampler),
+                },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: transform_uniform.buffer().as_entire_binding(),
                 },
             ],
             label: Some(&self.id),

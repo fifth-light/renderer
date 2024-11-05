@@ -201,8 +201,11 @@ impl<'a, ModelLoader: ModelLoaderGui> State<'a, ModelLoader> {
     }
 
     fn load_obj(&mut self, path: PathBuf) {
-        let mut asset_loader =
-            RendererAssetLoader::new(self.renderer.state.bind_group_layout(), &mut self.pipelines);
+        let mut asset_loader = RendererAssetLoader::new(
+            self.renderer.state.bind_group_layout(),
+            self.renderer.state.global_defaults(),
+            &mut self.pipelines,
+        );
         let mut obj_loader = ObjLoader::default();
         let base_dir = match path.parent() {
             Some(base_dir) => base_dir,
@@ -227,8 +230,11 @@ impl<'a, ModelLoader: ModelLoaderGui> State<'a, ModelLoader> {
     }
 
     fn load_gltf(&mut self, path: PathBuf, params: &AssetLoadParams) {
-        let mut asset_loader =
-            RendererAssetLoader::new(self.renderer.state.bind_group_layout(), &mut self.pipelines);
+        let mut asset_loader = RendererAssetLoader::new(
+            self.renderer.state.bind_group_layout(),
+            self.renderer.state.global_defaults(),
+            &mut self.pipelines,
+        );
         let (scenes, animations) = match loader::gltf::load_from_path(&path, params) {
             Ok(scenes) => scenes,
             Err(err) => {
@@ -253,8 +259,11 @@ impl<'a, ModelLoader: ModelLoaderGui> State<'a, ModelLoader> {
     }
 
     fn load_pmx(&mut self, path: PathBuf) {
-        let mut asset_loader =
-            RendererAssetLoader::new(self.renderer.state.bind_group_layout(), &mut self.pipelines);
+        let mut asset_loader = RendererAssetLoader::new(
+            self.renderer.state.bind_group_layout(),
+            self.renderer.state.global_defaults(),
+            &mut self.pipelines,
+        );
         let base_dir = match path.parent() {
             Some(base_dir) => base_dir,
             None => {

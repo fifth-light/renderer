@@ -14,7 +14,7 @@ use format::{PmxFile, PmxMaterial, PmxTexture};
 use glam::Vec3;
 
 use crate::asset::{
-    material::MaterialAsset,
+    material::{MaterialAsset, MaterialTexture},
     mesh::MeshAsset,
     node::{DecomposedTransform, NodeAsset, NodeAssetId, NodeTransform},
     primitive::{PrimitiveAsset, PrimitiveAssetMode},
@@ -114,7 +114,10 @@ impl<'a> PmxLoader<'a> {
         material: &PmxMaterial,
     ) -> Result<MaterialAsset, PmxLoadError> {
         let texture = match material.texture_index.0 {
-            Some(index) => Some(self.load_texture(&file.textures[index])?),
+            Some(index) => Some(MaterialTexture {
+                texture: self.load_texture(&file.textures[index])?,
+                transform: None,
+            }),
             None => None,
         };
         Ok(MaterialAsset {

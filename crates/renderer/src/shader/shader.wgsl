@@ -64,6 +64,8 @@ var<uniform> instance: InstanceUniform;
 var diffuse_texture: texture_2d<f32>;
 @group(2) @binding(1)
 var diffuse_sampler: sampler;
+@group(2) @binding(2)
+var<uniform> diffuse_transform: mat3x3f;
 
 // 64K of memory
 const MAX_JOINTS = 512;
@@ -165,7 +167,7 @@ fn color_skin_vs_main(model: ColorSkinVertexInput) -> ColorVertexOutput {
 @vertex
 fn texture_vs_main(model: TextureVertexInput) -> TextureVertexOutput {
     var out: TextureVertexOutput;
-    out.tex_coords = model.tex_coords;
+    out.tex_coords = (diffuse_transform * vec3(model.tex_coords, 0.0)).xy;
     out.position = model.position;
     out.clip_position = camera.view_proj * instance.transform * vec4f(model.position, 1.0);
     out.normal = instance.normal * model.normal;
@@ -176,7 +178,7 @@ fn texture_vs_main(model: TextureVertexInput) -> TextureVertexOutput {
 @vertex
 fn texture_skin_vs_main(model: TextureSkinVertexInput) -> TextureVertexOutput {
     var out: TextureVertexOutput;
-    out.tex_coords = model.tex_coords;
+    out.tex_coords = (diffuse_transform * vec3(model.tex_coords, 0.0)).xy;
     out.position = model.position;
     let skin_matrix = compute_skin_transform_matrix(model.joint_index, model.joint_weight);
     out.clip_position = camera.view_proj * skin_matrix * vec4f(model.position, 1.0);
@@ -231,7 +233,7 @@ fn color_outline_skin_vs_main(model: ColorSkinVertexInput) -> ColorVertexOutput 
 @vertex
 fn texture_outline_vs_main(model: TextureVertexInput) -> TextureVertexOutput {
     var out: TextureVertexOutput;
-    out.tex_coords = model.tex_coords;
+    out.tex_coords = (diffuse_transform * vec3(model.tex_coords, 0.0)).xy;
 
     let normal = normalize(instance.normal * model.normal);
     let tangent = normalize(instance.normal * model.tangent);
@@ -249,7 +251,7 @@ fn texture_outline_vs_main(model: TextureVertexInput) -> TextureVertexOutput {
 @vertex
 fn texture_outline_skin_vs_main(model: TextureSkinVertexInput) -> TextureVertexOutput {
     var out: TextureVertexOutput;
-    out.tex_coords = model.tex_coords;
+    out.tex_coords = (diffuse_transform * vec3(model.tex_coords, 0.0)).xy;
 
     let normal_matrix = compute_skin_normal_matrix(model.joint_index, model.joint_weight);
     let normal = normalize(normal_matrix * model.normal);

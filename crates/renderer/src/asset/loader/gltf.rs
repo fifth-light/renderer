@@ -6,7 +6,7 @@ use std::{
     sync::Arc,
 };
 
-use glam::{Mat4, Quat, Vec3};
+use glam::{Mat4, Quat, Vec2, Vec3};
 use gltf::{
     accessor::{DataType, Dimensions},
     animation::{Channel, Interpolation, Property, Sampler},
@@ -27,7 +27,7 @@ use crate::asset::{
     },
     camera::{CameraAsset, CameraProjectionAsset, OrthographicCameraAsset, PerspectiveCameraAsset},
     loader::{chunk_and_clamp_vec3_to_vec4_f32, chunk_and_clamp_vec4_f32, chunk_vec3, chunk_vec4},
-    material::{MaterialAlphaMode, MaterialAsset},
+    material::{MaterialAlphaMode, MaterialAsset, MaterialTexture, TextureAssetTransform},
     mesh::MeshAsset,
     node::{DecomposedTransform, MatrixNodeTransform, NodeAsset, NodeAssetId, NodeTransform},
     normal::calculate_normal,
@@ -335,13 +335,18 @@ impl<'a> GltfDocumentLoader<'a> {
     fn load_material(&mut self, material: Material) -> MaterialAsset {
         let pbr_matallic_roughness = material.pbr_metallic_roughness();
         let diffuse_color = pbr_matallic_roughness.base_color_factor();
-        let diffuse_texture = if let Some(texture) = pbr_matallic_roughness.base_color_texture() {
+        let diffuse_texture = pbr_matallic_roughness.base_color_texture().map(|texture| {
+            let transform = texture.texture_transform();
+            let transform = transform.map(|transform| TextureAssetTransform {
+                offset: Vec2::from_array(transform.offset()),
+                rotation: transform.rotation(),
+                scale: Vec2::from_array(transform.scale()),
+                tex_coord: transform.tex_coord(),
+            });
             let texture = texture.texture();
             let texture = self.load_texture(texture);
-            Some(texture)
-        } else {
-            None
-        };
+            MaterialTexture { texture, transform }
+        });
         let alpha_mode = match material.alpha_mode() {
             AlphaMode::Opaque => MaterialAlphaMode::Opaque,
             AlphaMode::Mask => MaterialAlphaMode::Mask,
