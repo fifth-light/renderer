@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
+gui = ["renderer/gui"]
 panics-log = ["log-panics"]
 
 [lib]

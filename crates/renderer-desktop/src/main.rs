@@ -1,24 +1,24 @@
-use std::{sync::mpsc::Sender, thread};
+use renderer::winit::{App, NoOpAppcallCallback};
 
-use renderer::{
-    asset::loader::AssetLoadParams,
-    egui::{Align2, Context, Window},
-    gui::{GuiAction, ModelLoaderGui},
-    App, NoOpAppcallCallback,
-};
-
-use rfd::FileDialog;
-
+#[cfg(feature = "gui")]
 #[derive(Default)]
 struct DesktopModelLoaderGui {}
 
-impl ModelLoaderGui for DesktopModelLoaderGui {
+#[cfg(feature = "gui")]
+impl renderer::gui::ModelLoaderGui for DesktopModelLoaderGui {
     fn ui(
         &self,
-        ctx: &Context,
-        param: &mut AssetLoadParams,
-        gui_actions_tx: &mut Sender<GuiAction>,
+        ctx: &renderer::egui::Context,
+        param: &mut renderer::asset::loader::AssetLoadParams,
+        gui_actions_tx: &mut std::sync::mpsc::Sender<renderer::gui::GuiAction>,
     ) {
+        use renderer::{
+            egui::{Align2, Window},
+            gui::GuiAction,
+        };
+        use rfd::FileDialog;
+        use std::thread;
+
         Window::new("Load Model")
             .resizable([false, false])
             .pivot(Align2::RIGHT_TOP)
@@ -66,8 +66,9 @@ impl ModelLoaderGui for DesktopModelLoaderGui {
 fn main() {
     env_logger::init();
 
-    App::<NoOpAppcallCallback, DesktopModelLoaderGui>::run(
+    App::<NoOpAppcallCallback>::run(
         NoOpAppcallCallback::default(),
-        DesktopModelLoaderGui::default(),
+        #[cfg(feature = "gui")]
+        std::sync::Arc::new(DesktopModelLoaderGui::default()),
     );
 }

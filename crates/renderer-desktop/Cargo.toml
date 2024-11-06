@@ -3,7 +3,10 @@ name = "renderer-desktop"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+gui = ["renderer/winit-gui", "rfd"]
+
 [dependencies]
-renderer = { path = "../renderer" }
+renderer = { path = "../renderer", features = ["winit"] }
 env_logger.workspace = true
-rfd.workspace = true
+rfd = { workspace = true, optional = true }

@@ -1,10 +1,8 @@
-use std::{
-    fmt::Debug,
-    time::{Duration, Instant},
-};
+use std::{fmt::Debug, time::Duration};
 
 use glam::{Quat, Vec3};
 use log::{trace, warn};
+use web_time::Instant;
 
 use crate::asset::animation::{
     AnimationKeyFrame, AnimationKeyFrames, AnimationSampler, Interpolate,

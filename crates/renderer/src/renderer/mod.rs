@@ -1,4 +1,4 @@
-use std::{collections::HashMap, iter, time::Instant};
+use std::{collections::HashMap, iter};
 
 use animation::{AnimationGroupNode, AnimationState};
 use camera::Camera;
@@ -19,6 +19,7 @@ use uniform::{
     texture::TextureUniformBuffer,
     transform::InstanceUniformBuffer,
 };
+use web_time::Instant;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingType, BufferBindingType, Color, CommandEncoder,
@@ -27,7 +28,6 @@ use wgpu::{
     SamplerBindingType, ShaderStages, StoreOp, TextureSampleType, TextureView,
     TextureViewDimension,
 };
-use winit::dpi::PhysicalSize;
 
 pub mod animation;
 pub mod camera;
@@ -359,13 +359,13 @@ pub struct RendererState {
 }
 
 impl RendererState {
-    pub fn new(device: &Device, queue: &Queue, size: PhysicalSize<u32>) -> Self {
-        let view_aspect = size.width as f32 / size.height as f32;
+    pub fn new(device: &Device, queue: &Queue, size: (u32, u32)) -> Self {
+        let view_aspect = size.0 as f32 / size.1 as f32;
         let camera = Camera::default();
         let camera_buffer = CameraUniformBuffer::new(device, &camera, view_aspect);
         let light_uniform = LightUniformBuffer::new(device, vec![], GlobalLightParam::default());
 
-        let depth_texture = DepthTexture::new(device, (size.width, size.height));
+        let depth_texture = DepthTexture::new(device, (size.0, size.1));
 
         let bind_group_layout = RendererBindGroupLayout::new(device);
         let global_bind_group = device.create_bind_group(&BindGroupDescriptor {
@@ -452,12 +452,12 @@ impl RendererState {
         self.flashlight.as_ref()
     }
 
-    pub fn resize(&mut self, device: &Device, size: PhysicalSize<u32>) {
-        self.view_aspect = size.width as f32 / size.height as f32;
+    pub fn resize(&mut self, device: &Device, size: (u32, u32)) {
+        self.view_aspect = size.0 as f32 / size.1 as f32;
         self.free_camera
             .update_uniform(&mut self.camera_uniform, self.view_aspect);
 
-        self.depth_texture = DepthTexture::new(device, (size.width, size.height));
+        self.depth_texture = DepthTexture::new(device, (size.0, size.1));
     }
 
     pub fn set_lights(&mut self, lights: Vec<LightData>) {
@@ -522,7 +522,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(device: &Device, queue: &Queue, size: PhysicalSize<u32>) -> Self {
+    pub fn new(device: &Device, queue: &Queue, size: (u32, u32)) -> Self {
         let state = RendererState::new(device, queue, size);
         Self {
             root_node: GroupNode::new(Some("Root Node".to_string())),

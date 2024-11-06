@@ -4,6 +4,11 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+[features]
+gui = ["egui", "egui-wgpu"]
+winit = ["dep:winit", "pollster"]
+winit-gui = ["gui", "winit", "egui-winit"]
+
 [dependencies]
 bytemuck.workspace = true
 glam.workspace = true
@@ -12,16 +17,11 @@ image.workspace = true
 log.workspace = true
 tobj.workspace = true
 wgpu.workspace = true
-winit.workspace = true
-egui.workspace = true
-egui-wgpu.workspace = true
-egui_plot.workspace = true
-egui-winit.workspace = true
+winit = { workspace = true, optional = true }
+egui = { workspace = true, optional = true }
+egui-wgpu = { workspace = true, optional = true }
+egui-winit = { workspace = true, optional = true }
 binrw.workspace = true
 modular-bitfield.workspace = true
-
-[target.'cfg(not(any(target_arch = "wasm32", target_arch = "wasm64")))'.dependencies]
-pollster.workspace = true
-
-[target.'cfg(any(target_arch = "wasm32", target_arch = "wasm64"))'.dependencies]
-wasm-bindgen-futures.workspace = true
+pollster = { workspace = true, optional = true }
+web-time.workspace = true

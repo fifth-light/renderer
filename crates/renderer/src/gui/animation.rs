@@ -1,10 +1,7 @@
-use std::{
-    collections::HashMap,
-    sync::mpsc::Sender,
-    time::{Duration, Instant},
-};
+use std::{collections::HashMap, sync::mpsc::Sender, time::Duration};
 
 use egui::{Align2, CollapsingHeader, Context, ScrollArea, Ui, Window};
+use web_time::Instant;
 
 use crate::{
     asset::animation::{AnimationKeyFrames, AnimationSampler},

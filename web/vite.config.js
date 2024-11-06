@@ -9,7 +9,7 @@ export default defineConfig({
     ],
     server: {
         fs: {
-            allow: ["../crates/renderer-web/pkg"],
+            allow: ["../crates/renderer-web/pkg", "src"],
         },
     },
 })

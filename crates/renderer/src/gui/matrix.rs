@@ -1,6 +1,5 @@
 use egui::{Grid, Ui};
 use glam::Mat4;
-
 use std::hash::Hash;
 
 pub fn matrix_label(ui: &mut Ui, id: impl Hash, matrix: &Mat4) {

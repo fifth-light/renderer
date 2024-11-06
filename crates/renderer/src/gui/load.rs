@@ -16,7 +16,7 @@ pub trait ModelLoaderGui {
 }
 
 #[derive(Default)]
-pub struct NotSupportedModelLoaderGui {}
+pub struct NotSupportedModelLoaderGui;
 
 impl ModelLoaderGui for NotSupportedModelLoaderGui {
     fn ui(

@@ -1,4 +1,7 @@
-use std::{path::PathBuf, sync::mpsc::Sender, time::Instant};
+use std::{
+    path::PathBuf,
+    sync::{mpsc::Sender, Arc},
+};
 
 use animation::animation_items;
 use egui::Context;
@@ -9,6 +12,7 @@ use light::light_param;
 pub use load::{ModelLoaderGui, NotSupportedModelLoaderGui};
 use node_tree::node_tree;
 use perf::perf_info;
+use web_time::Instant;
 
 use crate::{
     asset::loader::AssetLoadParams,
@@ -19,6 +23,7 @@ use crate::{
 mod animation;
 mod context;
 mod error;
+pub mod event;
 mod joystick;
 mod light;
 mod load;
@@ -56,20 +61,16 @@ pub enum GuiAction {
     SetBackgroundColor(Vec3),
 }
 
-pub struct GuiParam<'a, ModelLoader: ModelLoaderGui> {
+pub struct GuiParam<'a> {
     pub time: &'a Instant,
     pub renderer: &'a Renderer,
-    pub model_loader: &'a ModelLoader,
+    pub model_loader: Arc<dyn ModelLoaderGui>,
     pub perf_tracker: &'a PerformanceTracker,
     pub position_controller: &'a mut PositionController,
     pub gui_actions_tx: &'a mut Sender<GuiAction>,
 }
 
-pub fn gui_main<ModelLoader: ModelLoaderGui>(
-    ctx: &Context,
-    param: GuiParam<ModelLoader>,
-    state: &mut GuiState,
-) {
+pub fn gui_main(ctx: &Context, param: GuiParam, state: &mut GuiState) {
     node_tree(ctx, param.renderer, param.gui_actions_tx);
     perf_info(ctx, param.perf_tracker);
     param
