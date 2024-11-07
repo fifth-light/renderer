@@ -7,6 +7,7 @@ use std::{
 pub enum TextureAssetId {
     PathIndex(PathBuf, usize),
     NameIndex(String, usize),
+    RandomIndex(u64, usize),
     String(String),
     Path(PathBuf),
 }
@@ -16,6 +17,7 @@ impl Display for TextureAssetId {
         match self {
             TextureAssetId::PathIndex(path, id) => write!(f, "{} #{}", path.to_string_lossy(), id),
             TextureAssetId::NameIndex(name, id) => write!(f, "{} #{}", name, id),
+            TextureAssetId::RandomIndex(random, id) => write!(f, "Rand#{} #{}", random, id),
             TextureAssetId::String(str) => str.fmt(f),
             TextureAssetId::Path(path) => path.to_string_lossy().fmt(f),
         }

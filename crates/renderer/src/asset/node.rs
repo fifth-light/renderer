@@ -88,6 +88,7 @@ impl From<NodeTransform> for DecomposedTransform {
 pub enum NodeAssetId {
     PathIndex(PathBuf, usize),
     NameIndex(String, usize),
+    RandomIndex(u64, usize),
     String(String),
     Path(PathBuf),
 }

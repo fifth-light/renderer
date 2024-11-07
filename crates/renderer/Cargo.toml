@@ -25,3 +25,4 @@ binrw.workspace = true
 modular-bitfield.workspace = true
 pollster = { workspace = true, optional = true }
 web-time.workspace = true
+getrandom.workspace = true

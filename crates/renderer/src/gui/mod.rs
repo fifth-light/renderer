@@ -52,6 +52,7 @@ pub enum GuiAction {
     LoadObj(PathBuf),
     LoadGltf(PathBuf),
     LoadPmx(PathBuf),
+    LoadGltfData(Option<String>, Vec<u8>),
     StopAnimation(usize),
     StartAnimationOnce(usize),
     StartAnimationRepeat(usize),

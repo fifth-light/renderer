@@ -7,7 +7,7 @@ use wgpu::{
     Buffer, BufferUsages, Device, Queue,
 };
 
-pub const MAX_JOINTS: usize = 512;
+pub const MAX_JOINTS: usize = 128;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Pod, Zeroable, Default)]

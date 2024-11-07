@@ -306,6 +306,38 @@ impl_State! {
             }
         }
 
+        pub fn load_gltf_data(&mut self, file_name: Option<String>, data: Vec<u8>, params: &AssetLoadParams) {
+            let mut asset_loader = RendererAssetLoader::new(
+                self.renderer.state.bind_group_layout(),
+                self.renderer.state.global_defaults(),
+                &mut self.pipelines,
+            );
+            let (scenes, animations) = match loader::gltf::load_from_data(data, params) {
+                Ok(scenes) => scenes,
+                #[allow(unused)]
+                Err(err) => {
+                    #[cfg(feature = "gui")]
+                    self.gui_state
+                        .state
+                        .add_error(format!("Load GLTF failed: {}", err));
+                    return;
+                }
+            };
+            let scene_group = asset_loader.load_scenes(
+                &self.device,
+                &self.queue,
+                scenes,
+                file_name,
+            );
+
+            let animations = asset_loader.load_animations(animations);
+
+            self.renderer.add_node(scene_group);
+            for animation in animations {
+                self.renderer.add_animation_group(animation);
+            }
+        }
+
         pub fn load_pmx(&mut self, path: PathBuf) {
             let mut asset_loader = RendererAssetLoader::new(
                 self.renderer.state.bind_group_layout(),
@@ -444,6 +476,10 @@ impl_State! {
                         self.load_gltf(path, &param);
                     }
                     GuiAction::LoadPmx(path) => self.load_pmx(path),
+                    GuiAction::LoadGltfData(file_name, data) => {
+                        let param = self.gui_state.state.asset_load_params().clone();
+                        self.load_gltf_data(file_name, data, &param);
+                    }
                     GuiAction::StopAnimation(id) => {
                         self.renderer
                             .set_animation_state(id, AnimationState::Stopped);

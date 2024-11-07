@@ -8,6 +8,7 @@ use super::node::NodeAssetId;
 pub enum SkinAssetId {
     PathIndex(PathBuf, usize),
     NameIndex(String, usize),
+    RandomIndex(u64, usize),
     String(String),
     Path(PathBuf),
 }

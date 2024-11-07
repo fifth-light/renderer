@@ -6,6 +6,7 @@ use std::{
     sync::Arc,
 };
 
+use getrandom::getrandom;
 use glam::{Mat4, Quat, Vec2, Vec3};
 use gltf::{
     accessor::{DataType, Dimensions},
@@ -52,12 +53,14 @@ enum AnimationPathType {
 #[derive(Debug, Clone)]
 pub enum GltfIdentifier {
     Path(PathBuf),
+    Random(u64),
 }
 
 impl From<(GltfIdentifier, usize)> for TextureAssetId {
     fn from(value: (GltfIdentifier, usize)) -> Self {
         match value {
             (GltfIdentifier::Path(path), index) => TextureAssetId::PathIndex(path, index),
+            (GltfIdentifier::Random(random), index) => TextureAssetId::RandomIndex(random, index),
         }
     }
 }
@@ -66,6 +69,7 @@ impl From<(GltfIdentifier, usize)> for NodeAssetId {
     fn from(value: (GltfIdentifier, usize)) -> Self {
         match value {
             (GltfIdentifier::Path(path), index) => NodeAssetId::PathIndex(path, index),
+            (GltfIdentifier::Random(random), index) => NodeAssetId::RandomIndex(random, index),
         }
     }
 }
@@ -74,6 +78,7 @@ impl From<(GltfIdentifier, usize)> for SkinAssetId {
     fn from(value: (GltfIdentifier, usize)) -> Self {
         match value {
             (GltfIdentifier::Path(path), index) => SkinAssetId::PathIndex(path, index),
+            (GltfIdentifier::Random(random), index) => SkinAssetId::RandomIndex(random, index),
         }
     }
 }
@@ -764,6 +769,24 @@ where
 {
     let id = GltfIdentifier::Path(path.as_ref().to_path_buf());
     let (document, buffers, images) = gltf::import(path)?;
+    let data = GltfData {
+        id,
+        buffers,
+        images,
+    };
+    let mut loader = GltfDocumentLoader::new(&data, params);
+    let result = loader.load(document);
+    Ok(result)
+}
+
+pub fn load_from_data(
+    data: Vec<u8>,
+    params: &AssetLoadParams,
+) -> Result<(Vec<SceneAsset>, Vec<AnimationAsset>), gltf::Error> {
+    let mut id = [0u8; 8];
+    getrandom(&mut id).unwrap();
+    let id = GltfIdentifier::Random(u64::from_ne_bytes(id));
+    let (document, buffers, images) = gltf::import_slice(&data)?;
     let data = GltfData {
         id,
         buffers,

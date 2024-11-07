@@ -67,8 +67,8 @@ var diffuse_sampler: sampler;
 @group(2) @binding(2)
 var<uniform> diffuse_transform: mat3x3f;
 
-// 64K of memory
-const MAX_JOINTS = 512;
+// 14336 bytes
+const MAX_JOINTS = 128;
 struct JointItem {
     transform: mat4x4f,
     normal: mat3x3f,

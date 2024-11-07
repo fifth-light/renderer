@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-gui = ["renderer/gui"]
+gui = ["renderer/gui", "rfd"]
 
 [dependencies]
 wasm-bindgen.workspace = true
@@ -25,3 +25,4 @@ web-sys = { version = "0.3.70", features = [
     "HtmlElement",
     "HtmlCanvasElement",
 ] }
+rfd = { workspace = true, optional = true }
