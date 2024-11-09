@@ -1,0 +1,19 @@
+[versions]
+agp = "8.7.2"
+kotlin = "2.0.21"
+rust-android-gradle = "0.9.4"
+core = "1.15.0"
+appcompat = "1.7.0"
+# MUST FOLLOW VERSION IN RUST android-activity STRICTLY
+#noinspection GradleDependency
+games-activity = "2.0.2"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "core" }
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+androidx-games-activity = { group = "androidx.games", name = "games-activity", version.ref = "games-activity" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+jetbrains-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+rust-android-gradle = { id = "org.mozilla.rust-android-gradle.rust-android", version.ref = "rust-android-gradle" }

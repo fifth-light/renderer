@@ -14,7 +14,7 @@ use winit::{
 
 pub use winit;
 
-use crate::{RenderTarget, State};
+use crate::{state::State, RenderTarget};
 
 pub trait AppCallback {
     fn event_loop_building<T: 'static>(&mut self, _event_loop_builder: &mut EventLoopBuilder<T>) {}
@@ -320,7 +320,7 @@ impl<Callback: AppCallback> ApplicationHandler<(Arc<Window>, AppState)> for App<
                 }
                 PhysicalKey::Code(KeyCode::F2) => {
                     if !event.repeat && event.state == ElementState::Released {
-                        let image = state.renderer.state.dump_depth(&state.device, &state.queue);
+                        let image = state.dump_depth();
                         if let Err(err) = image.save("depth.png") {
                             warn!("Failed to write depth image: {}", err);
                         }

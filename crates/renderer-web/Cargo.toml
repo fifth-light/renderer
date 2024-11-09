@@ -2,23 +2,25 @@
 name = "renderer-web"
 version = "0.1.0"
 edition = "2021"
+publish = false
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [features]
+default = ["gui"]
 gui = ["renderer/gui", "rfd"]
 
 [dependencies]
 wasm-bindgen.workspace = true
 wgpu = { workspace = true, features = ["webgl"] }
 wasm-bindgen-futures.workspace = true
-console_log = "1.0"
-console_error_panic_hook = "0.1"
+console_log.workspace = true
+console_error_panic_hook.workspace = true
 renderer.path = "../renderer"
 getrandom = { version = "*", features = ["js"] }
 log.workspace = true
-web-sys = { version = "0.3.70", features = [
+web-sys = { workspace = true, features = [
     "Window",
     "Document",
     "Element",

@@ -2848,13 +2848,14 @@ dependencies = [
 name = "renderer-android"
 version = "0.1.0"
 dependencies = [
+ "android-activity",
  "android_logger",
  "jni",
  "log",
  "log-panics",
  "ndk",
+ "pollster 0.4.0",
  "renderer",
- "winit",
 ]
 
 [[package]]

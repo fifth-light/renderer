@@ -35,3 +35,17 @@ web-time = "1.1.0"
 getrandom = "0.2"
 env_logger = "0.11"
 rfd = "0.15"
+jni = "0.21"
+ndk = "0.9"
+android_logger = "0.14"
+log-panics = { version = "2", features = ["with-backtrace"] }
+android-activity = { version = "0.6", features = ["game-activity"] }
+console_log = "1.0"
+console_error_panic_hook = "0.1"
+web-sys = "0.3.70"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

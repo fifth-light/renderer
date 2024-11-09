@@ -2,8 +2,10 @@
 name = "renderer-desktop"
 version = "0.1.0"
 edition = "2021"
+publish = false
 
 [features]
+default = ["gui"]
 gui = ["renderer/winit-gui", "rfd"]
 
 [dependencies]

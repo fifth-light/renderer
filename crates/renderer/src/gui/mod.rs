@@ -1,7 +1,4 @@
-use std::{
-    path::PathBuf,
-    sync::{mpsc::Sender, Arc},
-};
+use std::{path::PathBuf, sync::mpsc::Sender};
 
 use animation::animation_items;
 use egui::Context;
@@ -30,6 +27,7 @@ mod load;
 mod matrix;
 mod node_tree;
 mod perf;
+pub(crate) mod state;
 
 #[derive(Default)]
 pub struct GuiState {
@@ -65,7 +63,7 @@ pub enum GuiAction {
 pub struct GuiParam<'a> {
     pub time: &'a Instant,
     pub renderer: &'a Renderer,
-    pub model_loader: Arc<dyn ModelLoaderGui>,
+    pub model_loader: &'a dyn ModelLoaderGui,
     pub perf_tracker: &'a PerformanceTracker,
     pub position_controller: &'a mut PositionController,
     pub gui_actions_tx: &'a mut Sender<GuiAction>,
