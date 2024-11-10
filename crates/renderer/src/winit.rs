@@ -14,7 +14,10 @@ use winit::{
 
 pub use winit;
 
-use crate::{state::State, RenderTarget};
+use crate::{
+    state::{RenderResult, State},
+    RenderTarget,
+};
 
 pub trait AppCallback {
     fn event_loop_building<T: 'static>(&mut self, _event_loop_builder: &mut EventLoopBuilder<T>) {}
@@ -301,7 +304,13 @@ impl<Callback: AppCallback> ApplicationHandler<(Arc<Window>, AppState)> for App<
                 return;
             }
             WindowEvent::RedrawRequested => {
-                state.render(render_target.as_ref());
+                match state.render(render_target.as_ref()) {
+                    RenderResult::Succeed => (),
+                    RenderResult::NoSurface | RenderResult::SurfaceLost => {
+                        state.recreate_surface(render_target.clone());
+                        render_target.request_redraw();
+                    }
+                }
                 return;
             }
             #[cfg(feature = "winit-gui")]
@@ -311,6 +320,10 @@ impl<Callback: AppCallback> ApplicationHandler<(Arc<Window>, AppState)> for App<
                 return;
             }
             WindowEvent::Resized(new_size) => {
+                if new_size.width == 0 || new_size.height == 0 {
+                    debug!("Resize to zero size: {:?}", new_size);
+                    return;
+                }
                 self.window_size = Some(*new_size);
                 state.resize((new_size.width, new_size.height));
             }
