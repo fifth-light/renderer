@@ -10,7 +10,7 @@ use wgpu::{
 use super::index::IndexBuffer;
 
 pub trait Vertex: Copy + Clone + Pod + Zeroable {
-    const ATTRIBS: &[VertexAttribute];
+    const ATTRIBS: &'static [VertexAttribute];
 
     fn desc<'a>() -> VertexBufferLayout<'a> {
         VertexBufferLayout {
@@ -31,7 +31,7 @@ pub struct ColorVertex {
 }
 
 impl Vertex for ColorVertex {
-    const ATTRIBS: &[VertexAttribute] = &vertex_attr_array![
+    const ATTRIBS: &'static [VertexAttribute] = &vertex_attr_array![
         0 => Float32x3,
         1 => Float32x4,
         2 => Float32x3,
@@ -49,7 +49,7 @@ pub struct TextureVertex {
 }
 
 impl Vertex for TextureVertex {
-    const ATTRIBS: &[VertexAttribute] = &vertex_attr_array![
+    const ATTRIBS: &'static [VertexAttribute] = &vertex_attr_array![
         0 => Float32x3,
         1 => Float32x2,
         2 => Float32x3,
@@ -69,7 +69,7 @@ pub struct ColorSkinVertex {
 }
 
 impl Vertex for ColorSkinVertex {
-    const ATTRIBS: &[VertexAttribute] = &vertex_attr_array![
+    const ATTRIBS: &'static [VertexAttribute] = &vertex_attr_array![
         0 => Float32x3,
         1 => Float32x4,
         2 => Float32x3,
@@ -91,7 +91,7 @@ pub struct TextureSkinVertex {
 }
 
 impl Vertex for TextureSkinVertex {
-    const ATTRIBS: &[VertexAttribute] = &vertex_attr_array![
+    const ATTRIBS: &'static [VertexAttribute] = &vertex_attr_array![
         0 => Float32x3,
         1 => Float32x2,
         2 => Float32x3,
