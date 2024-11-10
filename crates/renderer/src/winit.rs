@@ -420,28 +420,4 @@ impl<Callback: AppCallback> ApplicationHandler<(Arc<Window>, AppState)> for App<
             _ => (),
         }
     }
-
-    #[cfg(target_family = "wasm")]
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, state: (Arc<Window>, State<'static>)) {
-        debug!("Received created state");
-        let (window, mut state) = state;
-        if self.window.is_none() {
-            warn!("State created, but window is none?");
-            self.window = Some(window);
-        }
-        match self.state {
-            MaybeState::Building => (),
-            MaybeState::State(_) => {
-                warn!("State is created when state is already created");
-            }
-            MaybeState::None => {
-                warn!("State is created when state is none");
-                return;
-            }
-        }
-        if let Some(window_size) = self.window_size.as_ref() {
-            state.resize(*window_size);
-        }
-        self.state = MaybeState::State(state);
-    }
 }
