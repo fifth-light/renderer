@@ -21,6 +21,11 @@ jobs:
         distribution: 'temurin'
         java-version: '21'
         cache: 'gradle'
+        steps:
+    - name: Set up NDK
+      uses: nttld/setup-ndk@v1
+      with:
+        ndk-version: r27c
     - name: Build
       working-directory: android
       run: ./gradlew build --no-daemon

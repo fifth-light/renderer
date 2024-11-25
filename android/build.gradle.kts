@@ -10,7 +10,7 @@ plugins {
 android {
     namespace = "top.fifthlight.renderer"
     compileSdk = 35
-    ndkVersion = "28.0.12433566"
+    ndkVersion = "27.2.12479018"
 
     defaultConfig {
         applicationId = "top.fifthlight.renderer"
