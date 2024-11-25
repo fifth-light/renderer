@@ -15,9 +15,15 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+    - name: Set up JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '21'
+        cache: 'gradle'
     - name: Build
       working-directory: android
-      run: ./gradlew build
+      run: ./gradlew build --no-daemon
     - name: Archive artifacts
       uses: actions/upload-artifact@v4
       with:
