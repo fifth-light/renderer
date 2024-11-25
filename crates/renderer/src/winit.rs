@@ -244,11 +244,8 @@ impl<Callback: AppCallback> ApplicationHandler<(Arc<Window>, AppState)> for App<
 
     fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
         debug!("Suspended");
-        match &mut self.state {
-            Some(state) => {
-                state.destroy_surface();
-            }
-            None => (),
+        if let Some(state) = &mut self.state {
+            state.destroy_surface();
         }
     }
 
