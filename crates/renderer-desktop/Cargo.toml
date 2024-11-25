@@ -4,11 +4,7 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
-[features]
-default = ["gui"]
-gui = ["renderer/winit-gui", "rfd"]
-
 [dependencies]
 renderer = { path = "../renderer", features = ["winit"] }
 env_logger.workspace = true
-rfd = { workspace = true, optional = true }
+rfd.workspace = true

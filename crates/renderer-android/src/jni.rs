@@ -1,4 +1,3 @@
-#[cfg(feature = "gui")]
 #[no_mangle]
 pub unsafe extern "system" fn Java_top_fifthlight_renderer_Native_sendModelDataAction(
     env: jni::JNIEnv,

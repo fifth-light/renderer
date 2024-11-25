@@ -5,9 +5,7 @@ edition = "2021"
 publish = false
 
 [features]
-gui = ["egui", "egui-wgpu"]
-winit = ["dep:winit", "pollster"]
-winit-gui = ["gui", "winit", "egui-winit"]
+winit = ["dep:winit", "egui-winit", "pollster"]
 
 [dependencies]
 bytemuck.workspace = true
@@ -18,8 +16,8 @@ log.workspace = true
 tobj.workspace = true
 wgpu.workspace = true
 winit = { workspace = true, optional = true }
-egui = { workspace = true, optional = true }
-egui-wgpu = { workspace = true, optional = true }
+egui.workspace = true
+egui-wgpu.workspace = true
 egui-winit = { workspace = true, optional = true }
 binrw.workspace = true
 modular-bitfield.workspace = true

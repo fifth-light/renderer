@@ -70,13 +70,11 @@ impl RenderTarget for WindowRenderTarget {
     }
 }
 
-#[cfg(feature = "winit-gui")]
 struct WindowEventHandler {
     window: Arc<Window>,
     egui_state: egui_winit::State,
 }
 
-#[cfg(feature = "winit-gui")]
 impl WindowEventHandler {
     fn new(window: Arc<Window>) -> Self {
         use egui::{Context, ViewportId};
@@ -94,7 +92,6 @@ impl WindowEventHandler {
     }
 }
 
-#[cfg(feature = "winit-gui")]
 impl crate::gui::event::GuiEventHandler for WindowEventHandler {
     fn egui_context(&self) -> &egui::Context {
         self.egui_state.egui_ctx()
@@ -114,18 +111,15 @@ pub struct App<Callback: AppCallback> {
     state: Option<State<'static, WindowEventHandler>>,
     render_target: Option<Arc<WindowRenderTarget>>,
     window_size: Option<PhysicalSize<u32>>,
-    #[cfg(feature = "winit-gui")]
+
     event_handler: Option<Arc<std::sync::Mutex<WindowEventHandler>>>,
-    #[cfg(feature = "winit-gui")]
+
     model_loader: Arc<dyn crate::gui::ModelLoaderGui>,
     callback: Callback,
 }
 
 impl<Callback: AppCallback> App<Callback> {
-    pub fn run(
-        mut callback: Callback,
-        #[cfg(feature = "winit-gui")] model_loader: Arc<dyn crate::gui::ModelLoaderGui>,
-    ) {
+    pub fn run(mut callback: Callback, model_loader: Arc<dyn crate::gui::ModelLoaderGui>) {
         let mut event_loop_builder = EventLoop::with_user_event();
         callback.event_loop_building(&mut event_loop_builder);
         let event_loop = event_loop_builder
@@ -138,9 +132,7 @@ impl<Callback: AppCallback> App<Callback> {
             state: None,
             render_target: Default::default(),
             window_size: Default::default(),
-            #[cfg(feature = "winit-gui")]
             event_handler: None,
-            #[cfg(feature = "winit-gui")]
             model_loader,
             callback,
         };
@@ -188,23 +180,17 @@ impl<Callback: AppCallback> App<Callback> {
 
         use pollster::FutureExt;
 
-        #[cfg(feature = "winit-gui")]
         let event_handler = Arc::new(std::sync::Mutex::new(WindowEventHandler::new(
             render_target.window.clone(),
         )));
-        #[cfg(feature = "winit-gui")]
-        {
-            self.event_handler = Some(event_handler.clone());
-        }
+        self.event_handler = Some(event_handler.clone());
 
         let size = render_target.window.inner_size();
         let size = (size.width, size.height);
         let mut state = State::new(
             render_target.clone(),
             size,
-            #[cfg(feature = "winit-gui")]
             event_handler,
-            #[cfg(feature = "winit-gui")]
             self.model_loader.clone(),
         )
         .block_on();
@@ -213,11 +199,7 @@ impl<Callback: AppCallback> App<Callback> {
     }
 }
 
-#[cfg(feature = "winit-gui")]
 type AppState = (Arc<Window>, State<'static, WindowEventHandler>);
-
-#[cfg(not(feature = "winit-gui"))]
-type AppState = (Arc<Window>, State<'static>);
 
 impl<Callback: AppCallback> ApplicationHandler<(Arc<Window>, AppState)> for App<Callback> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
@@ -257,7 +239,6 @@ impl<Callback: AppCallback> ApplicationHandler<(Arc<Window>, AppState)> for App<
     ) {
         let Some(state) = &mut self.state else { return };
 
-        #[cfg(feature = "winit-gui")]
         if state.egui_active() {
             return;
         }
@@ -310,7 +291,7 @@ impl<Callback: AppCallback> ApplicationHandler<(Arc<Window>, AppState)> for App<
                 }
                 return;
             }
-            #[cfg(feature = "winit-gui")]
+
             WindowEvent::Focused(focused) => {
                 let should_grab = *focused && !state.egui_active();
                 Self::update_cursor_grab(&render_target.window, should_grab);
@@ -347,7 +328,7 @@ impl<Callback: AppCallback> ApplicationHandler<(Arc<Window>, AppState)> for App<
                         }
                     }
                 }
-                #[cfg(feature = "winit-gui")]
+
                 PhysicalKey::Code(KeyCode::F10) => {
                     if !event.repeat && event.state == ElementState::Released {
                         let active = !state.egui_active();
@@ -363,7 +344,6 @@ impl<Callback: AppCallback> ApplicationHandler<(Arc<Window>, AppState)> for App<
             _ => (),
         }
 
-        #[cfg(feature = "winit-gui")]
         if state.egui_active() {
             // Since we always redraw, we can ignore the result
             let Some(event_handler) = self.event_handler.as_ref() else {

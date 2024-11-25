@@ -5,8 +5,6 @@ edition = "2021"
 publish = false
 
 [features]
-default = ["gui"]
-gui = ["renderer/gui"]
 log-panics = ["dep:log-panics"]
 
 [lib]

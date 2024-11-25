@@ -6,11 +6,8 @@ pub mod state;
 #[cfg(feature = "winit")]
 pub mod winit;
 
-#[cfg(feature = "gui")]
 pub mod gui;
-#[cfg(feature = "gui")]
 pub use egui;
-#[cfg(feature = "gui")]
 pub use egui_wgpu;
 
 use wgpu::{

@@ -21,15 +21,9 @@ use renderer::{
     RenderTarget,
 };
 
+mod gui;
 mod jni;
 
-#[cfg(feature = "gui")]
-mod gui;
-
-#[cfg(not(feature = "gui"))]
-type RendererState = State<'static>;
-
-#[cfg(feature = "gui")]
 type RendererState = State<'static, gui::AndroidEventHandler>;
 
 struct AndroidRenderTarget {
@@ -88,15 +82,13 @@ fn create_state(
     app: &AndroidApp,
     size: (u32, u32),
     render_target: Arc<AndroidRenderTarget>,
-    #[cfg(feature = "gui")] event_handler: Arc<Mutex<gui::AndroidEventHandler>>,
+    event_handler: Arc<Mutex<gui::AndroidEventHandler>>,
 ) -> RendererState {
     info!("Create new state");
     let mut new_state = RendererState::new(
         render_target,
         size,
-        #[cfg(feature = "gui")]
         event_handler.clone(),
-        #[cfg(feature = "gui")]
         Arc::new(gui::AndroidModelLoaderGui::new(app.clone())),
     )
     .block_on();
@@ -115,12 +107,11 @@ fn handle_event(
     state: &mut RendererState,
     pointer_state: &mut PointerState,
     event: &InputEvent,
-    #[cfg(feature = "gui")] event_handler: Option<&Arc<Mutex<gui::AndroidEventHandler>>>,
+    event_handler: Option<&Arc<Mutex<gui::AndroidEventHandler>>>,
 ) -> InputStatus {
     match event {
         InputEvent::MotionEvent(motion_event) => {
             if state.egui_active() {
-                #[cfg(feature = "gui")]
                 {
                     let Some(event_handler) = event_handler else {
                         return InputStatus::Handled;
@@ -226,25 +217,20 @@ fn handle_event(
             InputStatus::Handled
         }
         InputEvent::KeyEvent(key_event) => {
-            #[cfg(feature = "gui")]
             if let KeyAction::Down = key_event.action() {
                 if let Keycode::F10 = key_event.key_code() {
                     state.set_egui_active(!state.egui_active());
 
-                    #[cfg(feature = "gui")]
-                    {
-                        let Some(event_handler) = event_handler else {
-                            return InputStatus::Handled;
-                        };
-                        let mut handler = event_handler.lock().unwrap();
-                        handler.set_pointer_captured(!state.egui_active());
-                    }
+                    let Some(event_handler) = event_handler else {
+                        return InputStatus::Handled;
+                    };
+                    let mut handler = event_handler.lock().unwrap();
+                    handler.set_pointer_captured(!state.egui_active());
 
                     return InputStatus::Handled;
                 }
             }
             if state.egui_active() {
-                #[cfg(feature = "gui")]
                 {
                     let Some(event_handler) = event_handler else {
                         return InputStatus::Handled;
@@ -327,7 +313,6 @@ fn android_main(app: AndroidApp) {
     #[cfg(feature = "log-panics")]
     log_panics::init();
 
-    #[cfg(feature = "gui")]
     let mut event_handler: Option<Arc<Mutex<gui::AndroidEventHandler>>> = None;
     let mut pointer_state = PointerState::default();
     let mut state: Option<RendererState> = None;
@@ -353,7 +338,6 @@ fn android_main(app: AndroidApp) {
                                         state,
                                         &mut pointer_state,
                                         event,
-                                        #[cfg(feature = "gui")]
                                         event_handler.as_ref(),
                                     )
                                 });
@@ -388,7 +372,6 @@ fn android_main(app: AndroidApp) {
                             return;
                         }
 
-                        #[cfg(feature = "gui")]
                         let event_handler = if let Some(event_handler) = event_handler.as_mut() {
                             let mut handler = event_handler.lock().unwrap();
                             handler.update_config(&app, &new_render_target);
@@ -401,21 +384,13 @@ fn android_main(app: AndroidApp) {
                             new_event_handler
                         };
 
-                        let new_state = create_state(
-                            &app,
-                            size,
-                            new_render_target,
-                            #[cfg(feature = "gui")]
-                            event_handler.clone(),
-                        );
+                        let new_state =
+                            create_state(&app, size, new_render_target, event_handler.clone());
 
-                        #[cfg(feature = "gui")]
-                        {
-                            let limits = new_state.limits();
-                            let mut handler = event_handler.lock().unwrap();
-                            handler.set_pointer_captured(!new_state.egui_active());
-                            handler.set_max_texture_side(limits.max_texture_dimension_2d as usize)
-                        }
+                        let limits = new_state.limits();
+                        let mut handler = event_handler.lock().unwrap();
+                        handler.set_pointer_captured(!new_state.egui_active());
+                        handler.set_max_texture_side(limits.max_texture_dimension_2d as usize);
 
                         state = Some(new_state);
                     }
@@ -449,7 +424,6 @@ fn android_main(app: AndroidApp) {
                                 &app,
                                 size,
                                 render_target.clone(),
-                                #[cfg(feature = "gui")]
                                 event_handler.clone(),
                             );
                             state = Some(new_state);
@@ -458,41 +432,32 @@ fn android_main(app: AndroidApp) {
                     MainEvent::GainedFocus => {}
                     MainEvent::LostFocus => {}
                     MainEvent::ConfigChanged { .. } => {
-                        #[cfg(feature = "gui")]
-                        {
-                            info!("Config changed");
-                            let Some(render_target) = render_target.as_ref() else {
-                                return;
-                            };
-                            if let Some(event_handler) = event_handler.as_mut() {
-                                let mut handler = event_handler.lock().unwrap();
-                                info!("Update config");
-                                handler.update_config(&app, &render_target);
-                            }
+                        info!("Config changed");
+                        let Some(render_target) = render_target.as_ref() else {
+                            return;
+                        };
+                        if let Some(event_handler) = event_handler.as_mut() {
+                            let mut handler = event_handler.lock().unwrap();
+                            info!("Update config");
+                            handler.update_config(&app, render_target);
                         }
                     }
                     MainEvent::LowMemory => {}
                     MainEvent::Start => {}
                     MainEvent::Resume { loader: _, .. } => {
-                        #[cfg(feature = "gui")]
-                        {
-                            let Some(event_handler) = event_handler.as_ref() else {
-                                return;
-                            };
-                            let mut handler = event_handler.lock().unwrap();
-                            handler.on_resume();
-                        }
+                        let Some(event_handler) = event_handler.as_ref() else {
+                            return;
+                        };
+                        let mut handler = event_handler.lock().unwrap();
+                        handler.on_resume();
                     }
                     MainEvent::SaveState { saver: _, .. } => {}
                     MainEvent::Pause => {
-                        #[cfg(feature = "gui")]
-                        {
-                            let Some(event_handler) = event_handler.as_ref() else {
-                                return;
-                            };
-                            let mut handler = event_handler.lock().unwrap();
-                            handler.on_pause();
-                        }
+                        let Some(event_handler) = event_handler.as_ref() else {
+                            return;
+                        };
+                        let mut handler = event_handler.lock().unwrap();
+                        handler.on_pause();
                     }
                     MainEvent::Stop => {}
                     MainEvent::Destroy => running = false,
