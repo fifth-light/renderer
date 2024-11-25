@@ -38,7 +38,7 @@ jobs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: android-cargo-${{ hashFiles('**/Cargo.lock') }}
     - name: Build
       working-directory: android
       run: ./gradlew build --no-daemon
