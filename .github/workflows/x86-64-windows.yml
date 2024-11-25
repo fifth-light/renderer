@@ -30,5 +30,4 @@ jobs:
     - name: Archive artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: x86-64-windows
         path: target/x86_64-pc-windows-gnu/release/renderer-desktop.exe
