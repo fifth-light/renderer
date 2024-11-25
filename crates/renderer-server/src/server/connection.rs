@@ -114,6 +114,7 @@ where
         let message = message.map_err(ConnectionError::ReceiveError)?;
         let client_version = match message {
             ClientMessage::Handshake { version } => version,
+            _ => return Err(ConnectionError::BadMessage(message)),
         };
         info!("Client version: {:?}", client_version);
 
