@@ -7,10 +7,6 @@ publish = false
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[features]
-default = ["gui"]
-gui = ["renderer/gui", "rfd"]
-
 [dependencies]
 wasm-bindgen.workspace = true
 wgpu = { workspace = true, features = ["webgl"] }
@@ -27,4 +23,4 @@ web-sys = { workspace = true, features = [
     "HtmlElement",
     "HtmlCanvasElement",
 ] }
-rfd = { workspace = true, optional = true }
+rfd.workspace = true

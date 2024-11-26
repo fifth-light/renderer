@@ -2,6 +2,7 @@
 
 use std::{ffi::c_void, ptr::NonNull, sync::Arc};
 
+use gui::{WebEventHandler, WebModelLoaderGui};
 use log::{info, Level};
 use renderer::{state::State, RenderTarget};
 use wasm_bindgen::prelude::*;
@@ -11,7 +12,6 @@ use wgpu::rwh::{
     WebCanvasWindowHandle, WindowHandle,
 };
 
-#[cfg(feature = "gui")]
 mod gui;
 
 struct CanvasRenderTarget {
@@ -65,11 +65,7 @@ impl RenderTarget for CanvasRenderTarget {
     }
 }
 
-#[cfg(not(feature = "gui"))]
-type RendererState = State<'static>;
-
-#[cfg(feature = "gui")]
-type RendererState = State<'static, gui::WebEventHandler>;
+type RendererState = State<'static, WebEventHandler>;
 
 #[wasm_bindgen]
 #[derive(Debug, Clone, Copy)]
@@ -85,8 +81,8 @@ pub enum MouseButton {
 pub struct StateHolder {
     state: RendererState,
     render_target: Arc<CanvasRenderTarget>,
-    #[cfg(feature = "gui")]
-    event_handler: Arc<std::sync::Mutex<gui::WebEventHandler>>,
+
+    event_handler: Arc<std::sync::Mutex<WebEventHandler>>,
 }
 
 #[wasm_bindgen]
@@ -94,23 +90,23 @@ impl StateHolder {
     fn new(
         state: RendererState,
         render_target: Arc<CanvasRenderTarget>,
-        #[cfg(feature = "gui")] event_handler: Arc<std::sync::Mutex<gui::WebEventHandler>>,
+        event_handler: Arc<std::sync::Mutex<WebEventHandler>>,
     ) -> Self {
         Self {
             state,
             render_target,
-            #[cfg(feature = "gui")]
+
             event_handler,
         }
     }
 
     pub fn render(&mut self) {
-        self.state.render(self.render_target.as_ref());
+        let _todo = self.state.render(self.render_target.as_ref());
     }
 
     pub fn resize(&mut self, width: u32, height: u32, native_pixels_per_point: f32) {
         let new_size = (width, height);
-        #[cfg(feature = "gui")]
+
         {
             let mut event_handler = self.event_handler.lock().unwrap();
             event_handler.resize(new_size);
@@ -156,20 +152,14 @@ impl StateHolder {
     }
 
     pub fn egui_active(&self) -> bool {
-        #[cfg(not(feature = "gui"))]
-        return false;
-
-        #[cfg(feature = "gui")]
-        return self.state.egui_active();
+        self.state.egui_active()
     }
 
     pub fn set_egui_active(&mut self, active: bool) {
-        #[cfg(feature = "gui")]
         self.state.set_egui_active(active);
     }
 
     pub fn set_focused(&mut self, focused: bool) {
-        #[cfg(feature = "gui")]
         {
             let mut event_handler = self.event_handler.lock().unwrap();
             event_handler.set_focused(focused);
@@ -177,7 +167,6 @@ impl StateHolder {
     }
 
     pub fn set_theme(&mut self, is_dark: Option<bool>) {
-        #[cfg(feature = "gui")]
         {
             let mut event_handler = self.event_handler.lock().unwrap();
             event_handler.set_theme(is_dark);
@@ -185,7 +174,6 @@ impl StateHolder {
     }
 
     pub fn mouse_moved(&mut self, x: f32, y: f32) {
-        #[cfg(feature = "gui")]
         {
             if self.state.egui_active() {
                 let mut event_handler = self.event_handler.lock().unwrap();
@@ -195,7 +183,6 @@ impl StateHolder {
     }
 
     pub fn mouse_button(&mut self, x: f32, y: f32, button: MouseButton, pressed: bool) {
-        #[cfg(feature = "gui")]
         {
             if self.state.egui_active() {
                 let mut event_handler = self.event_handler.lock().unwrap();
@@ -224,17 +211,13 @@ pub fn run(redraw_handler: Function, create_handler: Function) {
     let target = CanvasRenderTarget::new(canvas, redraw_handler);
     let target = Arc::new(target);
 
-    #[cfg(not(feature = "gui"))]
-    let state = State::new(target.clone(), size);
-
-    #[cfg(feature = "gui")]
     let (state, event_handler) = {
-        let event_handler = Arc::new(std::sync::Mutex::new(gui::WebEventHandler::new(size)));
+        let event_handler = Arc::new(std::sync::Mutex::new(WebEventHandler::new(size)));
         let state = State::new(
             target.clone(),
             size,
             event_handler.clone(),
-            Arc::new(gui::WebModelLoaderGui),
+            Arc::new(WebModelLoaderGui),
         );
         (state, event_handler)
     };
@@ -250,9 +233,6 @@ pub fn run(redraw_handler: Function, create_handler: Function) {
             event_handler.set_native_pixels_per_point(native_pixels_per_point);
         }
 
-        #[cfg(not(feature = "gui"))]
-        let state_holder = StateHolder::new(state, target);
-        #[cfg(feature = "gui")]
         let state_holder = StateHolder::new(state, target, event_handler);
 
         create_handler
