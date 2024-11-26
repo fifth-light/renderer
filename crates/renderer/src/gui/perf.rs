@@ -1,6 +1,5 @@
 use egui::{Align2, Context, Window};
-
-use crate::perf::PerformanceTracker;
+use renderer_perf_tracker::PerformanceTracker;
 
 pub fn perf_info(ctx: &Context, perf_tracker: &PerformanceTracker) {
     Window::new("Performance Info")
@@ -15,6 +14,16 @@ pub fn perf_info(ctx: &Context, perf_tracker: &PerformanceTracker) {
                     ui.label("Frame time: unknown");
                 }
             };
+
+            match perf_tracker.avg_frame_time() {
+                Some(time) => {
+                    ui.label(format!("Avg frame time: {}ms", time.as_millis()));
+                }
+                None => {
+                    ui.label("Avg frame time: unknown");
+                }
+            };
+
             match perf_tracker.fps() {
                 Some(fps) => {
                     ui.label(format!("FPS: {:#.2}", fps));
@@ -22,6 +31,6 @@ pub fn perf_info(ctx: &Context, perf_tracker: &PerformanceTracker) {
                 None => {
                     ui.label("FPS: unknown");
                 }
-            }
+            };
         });
 }

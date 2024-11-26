@@ -1,5 +1,4 @@
 pub mod asset;
-pub mod perf;
 pub mod renderer;
 pub mod state;
 

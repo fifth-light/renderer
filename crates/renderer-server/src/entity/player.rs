@@ -2,8 +2,9 @@ use std::collections::VecDeque;
 
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
-use super::{BaseEntityData, Entity, Input, Output};
+use super::{BaseEntityData, Entity, Message, Output};
 
 #[derive(Debug, Clone)]
 pub struct PlayerEntity {
@@ -16,17 +17,21 @@ pub enum PlayerEntityInput {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum PlayerEntityMessage {
+    NewPosition(Vec3),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum PlayerEntityOutput {
     NewPosition(Vec3),
 }
 
-impl Input for PlayerEntityInput {}
+impl Message for PlayerEntityMessage {}
 
 impl Output for PlayerEntityOutput {}
 
 impl Entity for PlayerEntity {
-    type Message = ();
-    type Input = PlayerEntityInput;
+    type Message = PlayerEntityMessage;
     type Output = PlayerEntityOutput;
     type State = BaseEntityData;
 
@@ -38,25 +43,37 @@ impl Entity for PlayerEntity {
         self.base_data.clone()
     }
 
-    fn process_input(
+    fn process_message(
         &mut self,
-        input: Self::Input,
+        message: Self::Message,
         _pending_messages: &mut VecDeque<Self::Message>,
-        changes: &mut VecDeque<Self::Output>,
+        mut on_change: impl FnMut(Self::Output),
     ) {
-        match input {
-            PlayerEntityInput::NewPosition(new_position) => {
+        match message {
+            PlayerEntityMessage::NewPosition(new_position) => {
                 self.base_data.position = new_position;
-                changes.push_back(PlayerEntityOutput::NewPosition(new_position));
+                on_change(PlayerEntityOutput::NewPosition(new_position));
             }
         }
     }
+}
 
-    fn process_message(
-        &mut self,
-        _message: Self::Message,
-        _pending_messages: &mut VecDeque<Self::Message>,
-        _changes: &mut VecDeque<Self::Output>,
+impl PlayerEntity {
+    pub fn new(id: Uuid, position: Vec3) -> Self {
+        Self {
+            base_data: BaseEntityData { id, position },
+        }
+    }
+
+    pub fn process_input(
+        &self,
+        input: PlayerEntityInput,
+        pending_messages: &mut VecDeque<PlayerEntityMessage>,
     ) {
+        match input {
+            PlayerEntityInput::NewPosition(new_position) => {
+                pending_messages.push_back(PlayerEntityMessage::NewPosition(new_position));
+            }
+        }
     }
 }

@@ -6,8 +6,12 @@ use std::{
 };
 
 use futures::{Sink, SinkExt, Stream, StreamExt, TryStreamExt};
+use glam::Vec3;
 use log::{info, trace};
-use tokio::{select, time::sleep};
+use tokio::{select, sync::mpsc, time::sleep};
+use uuid::Uuid;
+
+use crate::entity::{player::PlayerEntity, Entity};
 
 use super::{
     message::{ClientMessage, ServerMessage, VersionData},
@@ -43,6 +47,9 @@ where
     SendError(SE),
     ReceiveError(RE),
     NoHandshake,
+    PlayerAlreadyExists,
+    OutputChannelAlreadyExists,
+    OutputChannelDestroyed,
     BadMessage(ClientMessage),
     HandshakeTimeout(Duration),
 }
@@ -57,6 +64,9 @@ where
             Self::SendError(err) => write!(f, "Failed to send: {:?}", err),
             Self::ReceiveError(err) => write!(f, "Failed to receive: {:?}", err),
             Self::NoHandshake => write!(f, "No handshake received"),
+            Self::PlayerAlreadyExists => write!(f, "Player already exists"),
+            Self::OutputChannelAlreadyExists => write!(f, "Output channel already exists"),
+            Self::OutputChannelDestroyed => write!(f, "Output channel is destroyed"),
             Self::BadMessage(message) => write!(f, "Bad message from client: {:?}", message),
             Self::HandshakeTimeout(duration) => {
                 write!(f, "Handshake timeout after {} ms", duration.as_millis())
@@ -118,31 +128,81 @@ where
         };
         info!("Client version: {:?}", client_version);
 
-        // Sync world to client
-        let world = self.server.world.read().await;
-        let entity_states = world.entity_states();
-        drop(world);
-        transport
-            .send(ServerMessage::SyncWorld { entity_states })
-            .await
-            .map_err(ConnectionError::SendError)?;
+        // Lock server state
+        let mut state = self.server.state.write().await;
 
-        // Handle input and output
-        while let Some(message) = transport
-            .try_next()
-            .await
-            .map_err(ConnectionError::ReceiveError)?
-        {
-            match message {
-                ClientMessage::Handshake { .. } => {
-                    return Err(ConnectionError::BadMessage(message))
-                }
-                ClientMessage::EntityInput { id, input } => {
-                    trace!("Entity input: {} -> {:?}", id, input)
-                }
-            }
+        // Add player to world
+        let player_id = Uuid::new_v4();
+
+        // Add output channel
+        let (output_tx, mut output_rx) = mpsc::unbounded_channel();
+        if state.insert_channel(player_id, output_tx).is_err() {
+            return Err(ConnectionError::OutputChannelAlreadyExists);
         }
 
-        Ok(transport)
+        let player = PlayerEntity::new(player_id, Vec3::ZERO);
+        info!(
+            "Player {} logged in at {:?}",
+            player.id(),
+            player.position()
+        );
+        if state.world.insert_player(player).is_err() {
+            state.remove_channel(player_id);
+            return Err(ConnectionError::PlayerAlreadyExists);
+        }
+
+        // Copy entity state, and send them to client
+        let entity_states = state.world.entities.state();
+
+        drop(state);
+
+        let run_result = async move {
+            transport
+                .send(ServerMessage::SyncWorld {
+                    player_id,
+                    entity_states,
+                })
+                .await
+                .map_err(ConnectionError::SendError)?;
+
+            // Handle input and output
+            loop {
+                tokio::select! {
+                    message = transport.try_next() => {
+                        let message = message.map_err(ConnectionError::ReceiveError)?;
+                        let Some(message) = message else { break };
+                        match message {
+                            ClientMessage::Handshake { .. } => {
+                                return Err(ConnectionError::BadMessage(message))
+                            }
+                            ClientMessage::PlayerInput(input) => {
+                                trace!("Entity input: {:?}", input);
+                                self.server.input_queue.push((player_id, input));
+                            }
+                        }
+                    }
+                    output = output_rx.recv() => {
+                        let Some(output) = output else {
+                            return Err(ConnectionError::OutputChannelDestroyed);
+                        };
+                        transport
+                            .send(ServerMessage::TickOutput((*output).clone()))
+                            .await
+                            .map_err(ConnectionError::SendError)?;
+                    }
+                }
+            }
+
+            Ok(transport)
+        }
+        .await;
+
+        // Queue removal of player
+        let mut state = self.server.state.write().await;
+        state.world.entities.queue_remove_player(player_id);
+        // Remove output queue
+        state.output_queue.remove(&player_id);
+
+        run_result
     }
 }

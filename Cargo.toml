@@ -6,6 +6,7 @@ members = [
     "crates/renderer-desktop",
     "crates/renderer-web",
     "crates/renderer-server",
+    "crates/renderer-perf-tracker",
 ]
 
 [workspace.dependencies]
@@ -18,7 +19,12 @@ wgpu = { version = "22.1", features = ["webgl"] }
 getrandom = "0.2"
 env_logger = "0.11"
 serde = { version = "1", features = ["derive"] }
-uuid = { version = "1.11.0", features = ["v4", "fast-rng", "macro-diagnostics", "serde"] }
+uuid = { version = "1.11.0", features = [
+    "v4",
+    "fast-rng",
+    "macro-diagnostics",
+    "serde",
+] }
 
 # OBJ
 tobj = "4"
@@ -62,11 +68,17 @@ wasm-bindgen-futures = "0.4"
 web-time = "1.1.0"
 
 # Server
-tokio = { version = "1", features = ["sync", "rt-multi-thread", "macros", "time"] }
+tokio = { version = "1", features = [
+    "sync",
+    "rt-multi-thread",
+    "macros",
+    "time",
+] }
 futures = "0.3"
 tokio-tungstenite = "0.24.0"
 tokio-serde = { version = "0.9", features = ["json", "bincode"] }
 bytes = "1.8"
+crossbeam = "0.8"
 
 [profile.release]
 lto = true

@@ -10,6 +10,7 @@ winit = ["dep:winit", "pollster"]
 winit-gui = ["gui", "winit", "egui-winit"]
 
 [dependencies]
+renderer-perf-tracker.path = "../renderer-perf-tracker"
 bytemuck.workspace = true
 glam.workspace = true
 gltf.workspace = true

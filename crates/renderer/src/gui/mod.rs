@@ -9,11 +9,11 @@ use light::light_param;
 pub use load::{ModelLoaderGui, NotSupportedModelLoaderGui};
 use node_tree::node_tree;
 use perf::perf_info;
+use renderer_perf_tracker::PerformanceTracker;
 use web_time::Instant;
 
 use crate::{
     asset::loader::AssetLoadParams,
-    perf::PerformanceTracker,
     renderer::{camera::PositionController, uniform::light::GlobalLightParam, Renderer},
 };
 

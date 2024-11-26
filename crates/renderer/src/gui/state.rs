@@ -5,13 +5,11 @@ use std::sync::{
 
 use egui::FullOutput;
 use egui_wgpu::Renderer as EguiRenderer;
+use renderer_perf_tracker::PerformanceTracker;
 use web_time::Instant;
 use wgpu::{Device, SurfaceConfiguration};
 
-use crate::{
-    perf::PerformanceTracker,
-    renderer::{camera::PositionController, Renderer, DEPTH_TEXTURE_FORMAT},
-};
+use crate::renderer::{camera::PositionController, Renderer, DEPTH_TEXTURE_FORMAT};
 
 use super::{event::GuiEventHandler, gui_main, GuiAction, GuiParam, GuiState, ModelLoaderGui};
 

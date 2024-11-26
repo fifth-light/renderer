@@ -26,7 +26,6 @@ impl Output for TestEntityOutput {}
 
 impl Entity for TestEntity {
     type Message = TestEntityMessage;
-    type Input = ();
     type Output = TestEntityOutput;
     type State = BaseEntityData;
 
@@ -38,24 +37,16 @@ impl Entity for TestEntity {
         self.base_data.clone()
     }
 
-    fn process_input(
-        &mut self,
-        _input: Self::Input,
-        _pending_messages: &mut VecDeque<Self::Message>,
-        _changes: &mut VecDeque<Self::Output>,
-    ) {
-    }
-
     fn process_message(
         &mut self,
         message: Self::Message,
         _pending_messages: &mut VecDeque<Self::Message>,
-        changes: &mut VecDeque<Self::Output>,
+        mut on_change: impl FnMut(Self::Output),
     ) {
         match message {
             TestEntityMessage::NewPosition(new_position) => {
                 self.base_data.position = new_position;
-                changes.push_back(TestEntityOutput::NewPosition(new_position));
+                on_change(TestEntityOutput::NewPosition(new_position));
             }
         }
     }

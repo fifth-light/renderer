@@ -3,7 +3,6 @@ use crate::{
         loader::{self, obj::ObjLoader, pmx::load_pmx, AssetLoadParams},
         node::DecomposedTransform,
     },
-    perf::PerformanceTracker,
     renderer::{
         camera::{CameraProjection, PositionController},
         loader::RendererAssetLoader,
@@ -21,6 +20,7 @@ use crate::{
 use glam::{EulerRot, Quat, Vec3};
 use image::GrayImage;
 use log::warn;
+use renderer_perf_tracker::PerformanceTracker;
 use std::{f32::consts::PI, path::PathBuf, sync::Arc};
 use web_time::Instant;
 use wgpu::{
@@ -170,7 +170,7 @@ impl_State! {
                 config,
                 limits,
                 size,
-                perf_tracker: PerformanceTracker::default(),
+                perf_tracker: PerformanceTracker::new(60),
                 renderer,
                 pipelines,
                 position_controller: PositionController::default(),

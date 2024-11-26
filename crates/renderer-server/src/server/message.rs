@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{entity::EntityInput, world::EntityStates};
+use crate::{
+    entity::player::PlayerEntityInput,
+    world::{EntityStates, TickOutput},
+};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct VersionData {
@@ -28,12 +31,18 @@ impl VersionData {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ServerMessage {
-    Handshake { version: VersionData },
-    SyncWorld { entity_states: EntityStates },
+    Handshake {
+        version: VersionData,
+    },
+    SyncWorld {
+        player_id: Uuid,
+        entity_states: EntityStates,
+    },
+    TickOutput(TickOutput),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ClientMessage {
     Handshake { version: VersionData },
-    EntityInput { id: Uuid, input: EntityInput },
+    PlayerInput(PlayerEntityInput),
 }
