@@ -3,15 +3,11 @@ use std::sync::mpsc::Sender;
 use egui::{color_picker::color_edit_button_rgb, Align2, Context, Slider, SliderClamping, Window};
 use glam::Vec3;
 
-use crate::renderer::{uniform::light::GlobalLightParam, RendererState};
+use crate::renderer::{uniform::light::GlobalLightParam, Renderer};
 
 use super::GuiAction;
 
-pub fn light_param(
-    ctx: &Context,
-    renderer: &RendererState,
-    gui_actions_tx: &mut Sender<GuiAction>,
-) {
+pub fn light_param(ctx: &Context, renderer: &Renderer, gui_actions_tx: &mut Sender<GuiAction>) {
     Window::new("Light Params")
         .resizable([false, false])
         .pivot(Align2::RIGHT_BOTTOM)

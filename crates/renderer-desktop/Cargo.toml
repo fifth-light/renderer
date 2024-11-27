@@ -7,4 +7,3 @@ publish = false
 [dependencies]
 renderer = { path = "../renderer", features = ["winit"] }
 env_logger.workspace = true
-rfd.workspace = true

@@ -58,7 +58,7 @@ fn f32_array_to_position(array: &[f32; 3]) -> [PositionFloat; 3] {
     [array[0].into(), array[1].into(), array[2].into()]
 }
 
-pub fn calculate_tangent(
+pub fn _calculate_tangent(
     mode: PrimitiveAssetMode,
     positions: &[[f32; 3]],
     indices: Option<&[u32]>,

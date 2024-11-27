@@ -1,14 +1,39 @@
 use bytemuck::{cast_slice, Pod, Zeroable};
+use glam::Vec3;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     Buffer, BufferUsages, Device, Queue,
 };
 
-use crate::renderer::node::light::LightData;
-
 pub const MAX_POINT_LIGHTS: usize = 128;
 pub const MAX_DIRECTIONAL_LIGHTS: usize = 64;
 pub const MAX_PARALLEL_LIGHTS: usize = 16;
+
+#[derive(Debug, Clone)]
+pub enum LightData {
+    Point {
+        position: Vec3,
+        color: Vec3,
+        constant: f32,
+        linear: f32,
+        quadratic: f32,
+    },
+    Directional {
+        position: Vec3,
+        color: Vec3,
+        direction: Vec3,
+        constant: f32,
+        linear: f32,
+        quadratic: f32,
+        range_inner: f32,
+        range_outer: f32,
+    },
+    Parallel {
+        direction: Vec3,
+        color: Vec3,
+        strength: f32,
+    },
+}
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Pod, Zeroable, Default)]

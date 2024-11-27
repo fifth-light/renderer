@@ -1,33 +1,16 @@
 use crate::{
-    asset::{
-        loader::{self, obj::ObjLoader, pmx::load_pmx, AssetLoadParams},
-        node::DecomposedTransform,
-    },
-    gui::{event::GuiEventHandler, state::EguiState, GuiAction, ModelLoaderGui},
+    gui::{event::GuiEventHandler, state::EguiState, GuiAction},
     renderer::{
-        animation::AnimationState,
         camera::{CameraProjection, PositionController},
-        loader::RendererAssetLoader,
-        node::{
-            crosshair::CrosshairNode,
-            light::{LightNode, LightParam},
-            transform::TransformNode,
-            RenderNodeItem,
-        },
         pipeline::Pipelines,
         OngoingRenderState, Renderer,
     },
     RenderTarget,
 };
-use glam::{EulerRot, Quat, Vec3};
 use image::GrayImage;
 use log::warn;
 use renderer_perf_tracker::PerformanceTracker;
-use std::{
-    f32::consts::PI,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 use web_time::Instant;
 use wgpu::{
     util::{backend_bits_from_env, initialize_adapter_from_env, power_preference_from_env},
@@ -44,7 +27,7 @@ pub enum RenderResult {
     SurfaceLost,
 }
 
-pub struct State<'a, EventHandler: GuiEventHandler> {
+pub struct State<'a> {
     instance: Instance,
     adapter: Adapter,
     surface: Option<Surface<'a>>,
@@ -57,14 +40,14 @@ pub struct State<'a, EventHandler: GuiEventHandler> {
     perf_tracker: PerformanceTracker,
 
     renderer: Renderer,
-    pipelines: Pipelines,
+    _pipelines: Pipelines,
     pub position_controller: PositionController,
     last_render_time: Option<Instant>,
     rotation_speed: f32,
-    gui_state: EguiState<EventHandler>,
+    gui_state: EguiState,
 }
 
-impl<'a, EventHandler: GuiEventHandler> State<'a, EventHandler> {
+impl<'a> State<'a> {
     fn create_config(
         surface: &Surface,
         adapter: &Adapter,
@@ -99,8 +82,7 @@ impl<'a, EventHandler: GuiEventHandler> State<'a, EventHandler> {
     pub async fn new(
         render_target: Arc<dyn RenderTarget>,
         size: (u32, u32),
-        event_handler: Arc<Mutex<EventHandler>>,
-        model_loader: Arc<dyn ModelLoaderGui>,
+        event_handler: Arc<Mutex<dyn GuiEventHandler>>,
     ) -> Self {
         let backends = if cfg!(target_family = "wasm") {
             Backends::GL | Backends::BROWSER_WEBGPU
@@ -150,7 +132,7 @@ impl<'a, EventHandler: GuiEventHandler> State<'a, EventHandler> {
         let renderer = Renderer::new(&device, &queue, size);
         let pipelines = Pipelines::new(&device, config.format);
 
-        let gui_state = EguiState::new(&device, &config, event_handler, model_loader);
+        let gui_state = EguiState::new(&device, &config, event_handler);
 
         Self {
             instance,
@@ -163,7 +145,7 @@ impl<'a, EventHandler: GuiEventHandler> State<'a, EventHandler> {
             size,
             perf_tracker: PerformanceTracker::new(60),
             renderer,
-            pipelines,
+            _pipelines: pipelines,
             position_controller: PositionController::default(),
             last_render_time: None,
             rotation_speed: 0.3,
@@ -171,162 +153,8 @@ impl<'a, EventHandler: GuiEventHandler> State<'a, EventHandler> {
         }
     }
 
-    fn show_error(&mut self, error: String) {
+    fn _show_error(&mut self, error: String) {
         self.gui_state.state.add_error(error);
-    }
-
-    pub fn load_obj(&mut self, path: PathBuf) {
-        let mut asset_loader = RendererAssetLoader::new(
-            self.renderer.state.bind_group_layout(),
-            self.renderer.state.global_defaults(),
-            &mut self.pipelines,
-        );
-        let mut obj_loader = ObjLoader::default();
-        let base_dir = match path.parent() {
-            Some(base_dir) => base_dir,
-            None => {
-                self.show_error(format!(
-                    "Failed to find a base path for \"{}\"",
-                    path.to_string_lossy()
-                ));
-                return;
-            }
-        };
-        let mesh_asset = match obj_loader.load(base_dir, &path) {
-            Ok(asset) => asset,
-            #[allow(unused)]
-            Err(err) => {
-                self.show_error(format!("Load OBJ failed: {}", err));
-                return;
-            }
-        };
-        let mesh_node = asset_loader.load_mesh(&self.device, &self.queue, mesh_asset);
-        self.renderer.add_node(mesh_node);
-    }
-
-    pub fn load_gltf(&mut self, path: PathBuf, params: &AssetLoadParams) {
-        let mut asset_loader = RendererAssetLoader::new(
-            self.renderer.state.bind_group_layout(),
-            self.renderer.state.global_defaults(),
-            &mut self.pipelines,
-        );
-        let (scenes, animations) = match loader::gltf::load_from_path(&path, params) {
-            Ok(scenes) => scenes,
-            #[allow(unused)]
-            Err(err) => {
-                self.show_error(format!("Load GLTF failed: {}", err));
-                return;
-            }
-        };
-        let scene_group = asset_loader.load_scenes(
-            &self.device,
-            &self.queue,
-            scenes,
-            Some(path.to_string_lossy().to_string()),
-        );
-
-        let animations = asset_loader.load_animations(animations);
-
-        self.renderer.add_node(scene_group);
-        for animation in animations {
-            self.renderer.add_animation_group(animation);
-        }
-    }
-
-    pub fn load_gltf_data(
-        &mut self,
-        file_name: Option<String>,
-        data: Vec<u8>,
-        params: &AssetLoadParams,
-    ) {
-        let mut asset_loader = RendererAssetLoader::new(
-            self.renderer.state.bind_group_layout(),
-            self.renderer.state.global_defaults(),
-            &mut self.pipelines,
-        );
-        let (scenes, animations) = match loader::gltf::load_from_data(data, params) {
-            Ok(scenes) => scenes,
-            #[allow(unused)]
-            Err(err) => {
-                self.show_error(format!("Load GLTF failed: {}", err));
-                return;
-            }
-        };
-        let scene_group = asset_loader.load_scenes(&self.device, &self.queue, scenes, file_name);
-
-        let animations = asset_loader.load_animations(animations);
-
-        self.renderer.add_node(scene_group);
-        for animation in animations {
-            self.renderer.add_animation_group(animation);
-        }
-    }
-
-    pub fn load_pmx(&mut self, path: PathBuf) {
-        let mut asset_loader = RendererAssetLoader::new(
-            self.renderer.state.bind_group_layout(),
-            self.renderer.state.global_defaults(),
-            &mut self.pipelines,
-        );
-        let base_dir = match path.parent() {
-            Some(base_dir) => base_dir,
-            None => {
-                self.show_error(format!(
-                    "Failed to find a base path for \"{}\"",
-                    path.to_string_lossy()
-                ));
-                return;
-            }
-        };
-        let scene_asset = match load_pmx(base_dir, &path) {
-            Ok(asset) => asset,
-            #[allow(unused)]
-            Err(err) => {
-                self.show_error(format!("Load pmx failed: {}", err));
-                return;
-            }
-        };
-        let node = asset_loader.load_scene(&self.device, &self.queue, scene_asset);
-        self.renderer.add_node(node);
-    }
-
-    pub fn setup_scene(&mut self) {
-        let mut pipelines = Pipelines::new(&self.device, self.config.format);
-
-        let crosshair = CrosshairNode::new(
-            &self.device,
-            self.renderer.state.bind_group_layout(),
-            &mut pipelines,
-        );
-        let crosshair_transform = TransformNode::from_scale(
-            Vec3::splat(200.0),
-            RenderNodeItem::Crosshair(Box::new(crosshair)),
-        );
-
-        let point_light = LightNode::new(
-            &self.device,
-            self.renderer.state.bind_group_layout(),
-            &mut pipelines,
-            LightParam::Parallel {
-                color: Vec3::new(1.0, 1.0, 0.9),
-                direction: Vec3::new(0.0, 1.0, 0.0),
-                strength: 0.5,
-            },
-            true,
-        );
-        let light_transform = TransformNode::from_decomposed_transform(
-            DecomposedTransform {
-                translation: Vec3::new(2.0, 2.0, 2.0),
-                rotation: Quat::from_euler(EulerRot::XYZ, 0.0, PI * 0.75, -PI * 0.25),
-                scale: Vec3::ONE,
-            },
-            RenderNodeItem::Light(Box::new(point_light)),
-        );
-
-        self.renderer
-            .add_node(RenderNodeItem::Transform(Box::new(crosshair_transform)));
-        self.renderer
-            .add_node(RenderNodeItem::Transform(Box::new(light_transform)));
     }
 
     pub fn resize(&mut self, new_size: (u32, u32)) {
@@ -339,7 +167,7 @@ impl<'a, EventHandler: GuiEventHandler> State<'a, EventHandler> {
                 None => return,
             };
             surface.configure(&self.device, &self.config);
-            self.renderer.state.resize(&self.device, new_size);
+            self.renderer.resize(&self.device, new_size);
         }
     }
 
@@ -356,7 +184,7 @@ impl<'a, EventHandler: GuiEventHandler> State<'a, EventHandler> {
     }
 
     pub fn update_fov(&mut self, inc: bool) {
-        self.renderer.state.update_camera(|camera| {
+        self.renderer.update_camera(|camera| {
             let delta = if inc { 10.0 } else { -10.0 };
             if let CameraProjection::Perspective { yfov, .. } = &mut camera.projection {
                 *yfov += delta;
@@ -366,7 +194,7 @@ impl<'a, EventHandler: GuiEventHandler> State<'a, EventHandler> {
     }
 
     pub fn update_rotation(&mut self, delta: (f32, f32)) {
-        self.renderer.state.update_camera(|camera| {
+        self.renderer.update_camera(|camera| {
             let x_delta = delta.0 * self.rotation_speed;
             let y_delta = delta.1 * self.rotation_speed;
             camera.view.yaw += x_delta;
@@ -384,47 +212,17 @@ impl<'a, EventHandler: GuiEventHandler> State<'a, EventHandler> {
     }
 
     pub fn dump_depth(&self) -> GrayImage {
-        self.renderer.state.dump_depth(&self.device, &self.queue)
+        self.renderer.dump_depth(&self.device, &self.queue)
     }
 
     fn handle_gui_events(&mut self) {
         while let Ok(action) = self.gui_state.recv_events() {
-            let gui_time = Instant::now();
             match action {
-                GuiAction::LoadObj(path) => self.load_obj(path),
-                GuiAction::LoadGltf(path) => {
-                    let param = self.gui_state.state.asset_load_params().clone();
-                    self.load_gltf(path, &param);
-                }
-                GuiAction::LoadPmx(path) => self.load_pmx(path),
-                GuiAction::LoadGltfData(file_name, data) => {
-                    let param = self.gui_state.state.asset_load_params().clone();
-                    self.load_gltf_data(file_name, data, &param);
-                }
-                GuiAction::StopAnimation(id) => {
-                    self.renderer
-                        .set_animation_state(id, AnimationState::Stopped);
-                }
-                GuiAction::StartAnimationOnce(id) => {
-                    self.renderer
-                        .set_animation_state(id, AnimationState::Once(gui_time));
-                }
-                GuiAction::StartAnimationRepeat(id) => {
-                    self.renderer
-                        .set_animation_state(id, AnimationState::Repeat(gui_time));
-                }
-                GuiAction::StartAnimationLoop(id) => {
-                    self.renderer
-                        .set_animation_state(id, AnimationState::Loop(gui_time));
-                }
-                GuiAction::EnableCamera(id) => {
-                    self.renderer.state.set_enabled_camera(id);
-                }
                 GuiAction::SetLightParam(param) => {
-                    self.renderer.state.set_global_light_param(param);
+                    self.renderer.set_global_light_param(param);
                 }
                 GuiAction::SetBackgroundColor(color) => {
-                    self.renderer.state.set_background_color(color);
+                    self.renderer.set_background_color(color);
                 }
             }
         }
@@ -442,12 +240,10 @@ impl<'a, EventHandler: GuiEventHandler> State<'a, EventHandler> {
         if let Some(last_renderer_time) = self.last_render_time {
             let duration = start_time - last_renderer_time;
             self.renderer
-                .state
                 .update_camera(|camera| self.position_controller.update(duration, camera));
         }
         self.last_render_time = Some(start_time);
-        self.renderer
-            .prepare(&self.device, &self.queue, &start_time);
+        self.renderer.prepare(&self.queue);
 
         let output = loop {
             match surface.get_current_texture() {
@@ -468,7 +264,7 @@ impl<'a, EventHandler: GuiEventHandler> State<'a, EventHandler> {
             .texture
             .create_view(&TextureViewDescriptor::default());
         let mut ongoing_state =
-            OngoingRenderState::new(&self.device, &texture_view, &self.renderer.state);
+            OngoingRenderState::new(&self.device, &texture_view, &self.renderer);
 
         self.renderer.render(&mut ongoing_state);
 

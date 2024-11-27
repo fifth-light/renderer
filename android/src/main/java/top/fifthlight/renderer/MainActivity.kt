@@ -54,22 +54,4 @@ class MainActivity: GameActivity() {
     fun openUrl(url: String) {
         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     }
-
-    private var callbackPointer: Long? = null
-    private val openFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        val callbackPointer = callbackPointer ?: return@registerForActivityResult
-        val uri = uri ?: return@registerForActivityResult
-        lifecycleScope.launch {
-            val modelData = withContext(Dispatchers.IO) {
-                contentResolver.openInputStream(uri)?.readBytes()
-            } ?: return@launch
-            Native.sendModelDataAction(callbackPointer, modelData)
-        }
-    }
-
-    @Suppress("unused")
-    fun openFile(callback: Long, filter: Array<String>) {
-        callbackPointer = callback
-        openFile.launch(filter)
-    }
 }

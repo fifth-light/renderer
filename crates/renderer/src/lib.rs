@@ -1,4 +1,5 @@
-pub mod asset;
+#![allow(unused)]
+mod asset;
 pub mod renderer;
 pub mod state;
 

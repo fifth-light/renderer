@@ -2,7 +2,7 @@
 
 use std::{ffi::c_void, ptr::NonNull, sync::Arc};
 
-use gui::{WebEventHandler, WebModelLoaderGui};
+use gui::WebEventHandler;
 use log::{info, Level};
 use renderer::{state::State, RenderTarget};
 use wasm_bindgen::prelude::*;
@@ -65,8 +65,6 @@ impl RenderTarget for CanvasRenderTarget {
     }
 }
 
-type RendererState = State<'static, WebEventHandler>;
-
 #[wasm_bindgen]
 #[derive(Debug, Clone, Copy)]
 pub enum MouseButton {
@@ -79,7 +77,7 @@ pub enum MouseButton {
 
 #[wasm_bindgen]
 pub struct StateHolder {
-    state: RendererState,
+    state: State<'static>,
     render_target: Arc<CanvasRenderTarget>,
 
     event_handler: Arc<std::sync::Mutex<WebEventHandler>>,
@@ -88,7 +86,7 @@ pub struct StateHolder {
 #[wasm_bindgen]
 impl StateHolder {
     fn new(
-        state: RendererState,
+        state: State<'static>,
         render_target: Arc<CanvasRenderTarget>,
         event_handler: Arc<std::sync::Mutex<WebEventHandler>>,
     ) -> Self {
@@ -213,18 +211,12 @@ pub fn run(redraw_handler: Function, create_handler: Function) {
 
     let (state, event_handler) = {
         let event_handler = Arc::new(std::sync::Mutex::new(WebEventHandler::new(size)));
-        let state = State::new(
-            target.clone(),
-            size,
-            event_handler.clone(),
-            Arc::new(WebModelLoaderGui),
-        );
+        let state = State::new(target.clone(), size, event_handler.clone());
         (state, event_handler)
     };
 
     wasm_bindgen_futures::spawn_local(async move {
-        let mut state = state.await;
-        state.setup_scene();
+        let state = state.await;
 
         {
             let native_pixels_per_point = window.device_pixel_ratio() as f32;

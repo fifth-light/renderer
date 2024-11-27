@@ -23,4 +23,3 @@ web-sys = { workspace = true, features = [
     "HtmlElement",
     "HtmlCanvasElement",
 ] }
-rfd.workspace = true

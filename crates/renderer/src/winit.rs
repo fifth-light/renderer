@@ -2,6 +2,7 @@
 use std::{cmp::Ordering, sync::Arc};
 
 use log::{debug, info, warn};
+use pollster::FutureExt;
 use wgpu::rwh::{DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle};
 use winit::{
     application::ApplicationHandler,
@@ -108,23 +109,16 @@ impl crate::gui::event::GuiEventHandler for WindowEventHandler {
 }
 
 pub struct App<Callback: AppCallback> {
-    state: Option<State<'static, WindowEventHandler>>,
+    state: Option<State<'static>>,
     render_target: Option<Arc<WindowRenderTarget>>,
     window_size: Option<PhysicalSize<u32>>,
-
     event_handler: Option<Arc<std::sync::Mutex<WindowEventHandler>>>,
-
-    model_loader: Arc<dyn crate::gui::ModelLoaderGui>,
     callback: Callback,
 }
 
 impl<Callback: AppCallback> App<Callback> {
-    pub fn run(mut callback: Callback, model_loader: Arc<dyn crate::gui::ModelLoaderGui>) {
-        let mut event_loop_builder = EventLoop::with_user_event();
-        callback.event_loop_building(&mut event_loop_builder);
-        let event_loop = event_loop_builder
-            .build()
-            .expect("Failed to create event loop");
+    pub fn run(callback: Callback) {
+        let event_loop = EventLoop::new().expect("Failed to create event loop");
 
         event_loop.set_control_flow(ControlFlow::Wait);
 
@@ -133,7 +127,6 @@ impl<Callback: AppCallback> App<Callback> {
             render_target: Default::default(),
             window_size: Default::default(),
             event_handler: None,
-            model_loader,
             callback,
         };
 
@@ -178,8 +171,6 @@ impl<Callback: AppCallback> App<Callback> {
         }
         debug!("Creating state");
 
-        use pollster::FutureExt;
-
         let event_handler = Arc::new(std::sync::Mutex::new(WindowEventHandler::new(
             render_target.window.clone(),
         )));
@@ -187,21 +178,12 @@ impl<Callback: AppCallback> App<Callback> {
 
         let size = render_target.window.inner_size();
         let size = (size.width, size.height);
-        let mut state = State::new(
-            render_target.clone(),
-            size,
-            event_handler,
-            self.model_loader.clone(),
-        )
-        .block_on();
-        state.setup_scene();
+        let state = State::new(render_target.clone(), size, event_handler).block_on();
         self.state = Some(state);
     }
 }
 
-type AppState = (Arc<Window>, State<'static, WindowEventHandler>);
-
-impl<Callback: AppCallback> ApplicationHandler<(Arc<Window>, AppState)> for App<Callback> {
+impl<Callback: AppCallback> ApplicationHandler for App<Callback> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         debug!("Resumed");
         let render_target = self.render_target.get_or_insert_with(|| {

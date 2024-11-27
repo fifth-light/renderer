@@ -22,9 +22,6 @@ use renderer::{
 };
 
 mod gui;
-mod jni;
-
-type RendererState = State<'static, gui::AndroidEventHandler>;
 
 struct AndroidRenderTarget {
     android_app: AndroidApp,
@@ -79,22 +76,12 @@ impl RenderTarget for AndroidRenderTarget {
 }
 
 fn create_state(
-    app: &AndroidApp,
     size: (u32, u32),
     render_target: Arc<AndroidRenderTarget>,
     event_handler: Arc<Mutex<gui::AndroidEventHandler>>,
-) -> RendererState {
+) -> State<'static> {
     info!("Create new state");
-    let mut new_state = RendererState::new(
-        render_target,
-        size,
-        event_handler.clone(),
-        Arc::new(gui::AndroidModelLoaderGui::new(app.clone())),
-    )
-    .block_on();
-    new_state.setup_scene();
-
-    new_state
+    State::new(render_target, size, event_handler.clone()).block_on()
 }
 
 #[derive(Default)]
@@ -104,7 +91,7 @@ struct PointerState {
 }
 
 fn handle_event(
-    state: &mut RendererState,
+    state: &mut State<'static>,
     pointer_state: &mut PointerState,
     event: &InputEvent,
     event_handler: Option<&Arc<Mutex<gui::AndroidEventHandler>>>,
@@ -315,7 +302,7 @@ fn android_main(app: AndroidApp) {
 
     let mut event_handler: Option<Arc<Mutex<gui::AndroidEventHandler>>> = None;
     let mut pointer_state = PointerState::default();
-    let mut state: Option<RendererState> = None;
+    let mut state: Option<State<'static>> = None;
     let mut render_target: Option<Arc<AndroidRenderTarget>> = None;
 
     info!("Initializing");
@@ -385,7 +372,7 @@ fn android_main(app: AndroidApp) {
                         };
 
                         let new_state =
-                            create_state(&app, size, new_render_target, event_handler.clone());
+                            create_state(size, new_render_target, event_handler.clone());
 
                         let limits = new_state.limits();
                         let mut handler = event_handler.lock().unwrap();
@@ -420,12 +407,8 @@ fn android_main(app: AndroidApp) {
                             info!("Resize state");
                             state.resize(size);
                         } else {
-                            let new_state = create_state(
-                                &app,
-                                size,
-                                render_target.clone(),
-                                event_handler.clone(),
-                            );
+                            let new_state =
+                                create_state(size, render_target.clone(), event_handler.clone());
                             state = Some(new_state);
                         }
                     }

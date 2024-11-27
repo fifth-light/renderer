@@ -11,31 +11,28 @@ use wgpu::{Device, SurfaceConfiguration};
 
 use crate::renderer::{camera::PositionController, Renderer, DEPTH_TEXTURE_FORMAT};
 
-use super::{event::GuiEventHandler, gui_main, GuiAction, GuiParam, GuiState, ModelLoaderGui};
+use super::{event::GuiEventHandler, gui_main, GuiAction, GuiParam, GuiState};
 
-pub(crate) struct EguiState<EventHandler: GuiEventHandler> {
+pub(crate) struct EguiState {
     pub active: bool,
     pub renderer: EguiRenderer,
-    pub event_handler: Arc<Mutex<EventHandler>>,
+    pub event_handler: Arc<Mutex<dyn GuiEventHandler>>,
     pub state: GuiState,
     pub gui_actions_tx: mpsc::Sender<GuiAction>,
     pub gui_actions_rx: mpsc::Receiver<GuiAction>,
-    pub model_loader: Arc<dyn ModelLoaderGui>,
 }
 
-impl<EventHandler: GuiEventHandler> EguiState<EventHandler> {
+impl EguiState {
     pub fn new(
         device: &Device,
         config: &SurfaceConfiguration,
-        event_handler: Arc<Mutex<EventHandler>>,
-        model_loader: Arc<dyn ModelLoaderGui>,
+        event_handler: Arc<Mutex<dyn GuiEventHandler>>,
     ) -> Self {
         let egui_renderer =
             EguiRenderer::new(device, config.format, Some(DEPTH_TEXTURE_FORMAT), 1, false);
 
         let (gui_actions_tx, gui_actions_rx) = mpsc::channel();
         Self {
-            model_loader,
             active: cfg!(target_os = "android"),
             renderer: egui_renderer,
             event_handler,
@@ -64,7 +61,6 @@ impl<EventHandler: GuiEventHandler> EguiState<EventHandler> {
                 GuiParam {
                     time: start_time,
                     renderer,
-                    model_loader: self.model_loader.as_ref(),
                     perf_tracker,
                     position_controller,
                     gui_actions_tx: &mut self.gui_actions_tx,
