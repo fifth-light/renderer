@@ -17,6 +17,7 @@ use renderer::{
     egui_wgpu::wgpu::rwh::{
         DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle,
     },
+    gui::connect::tokio::TokioConnectParam,
     state::{RenderResult, State},
     RenderTarget,
 };
@@ -79,7 +80,7 @@ fn create_state(
     size: (u32, u32),
     render_target: Arc<AndroidRenderTarget>,
     event_handler: Arc<Mutex<gui::AndroidEventHandler>>,
-) -> State<'static> {
+) -> State<'static, TokioConnectParam> {
     info!("Create new state");
     State::new(render_target, size, event_handler.clone()).block_on()
 }
@@ -91,7 +92,7 @@ struct PointerState {
 }
 
 fn handle_event(
-    state: &mut State<'static>,
+    state: &mut State<'static, TokioConnectParam>,
     pointer_state: &mut PointerState,
     event: &InputEvent,
     event_handler: Option<&Arc<Mutex<gui::AndroidEventHandler>>>,
@@ -302,7 +303,7 @@ fn android_main(app: AndroidApp) {
 
     let mut event_handler: Option<Arc<Mutex<gui::AndroidEventHandler>>> = None;
     let mut pointer_state = PointerState::default();
-    let mut state: Option<State<'static>> = None;
+    let mut state: Option<State<'static, TokioConnectParam>> = None;
     let mut render_target: Option<Arc<AndroidRenderTarget>> = None;
 
     info!("Initializing");

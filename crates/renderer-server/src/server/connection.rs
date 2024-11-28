@@ -8,14 +8,16 @@ use std::{
 use futures::{Sink, SinkExt, Stream, StreamExt, TryStreamExt};
 use glam::Vec3;
 use log::{info, trace};
+use renderer_protocol::{
+    message::{ClientMessage, ServerMessage},
+    version::VersionData,
+};
 use tokio::{select, sync::mpsc, time::sleep};
 use uuid::Uuid;
 
-use crate::entity::{player::PlayerEntity, Entity};
-
-use super::{
-    message::{ClientMessage, ServerMessage, VersionData},
-    Server,
+use crate::{
+    entity::{player::PlayerEntity, Entity},
+    server::Server,
 };
 
 #[derive(Debug)]
@@ -110,6 +112,7 @@ where
         // Receive client handshake
         let handshake_timeout = self.server.config.handshake_timeout;
         let message = select! {
+            biased;
             message = transport.next() => {
                 if let Some(message) = message {
                     message

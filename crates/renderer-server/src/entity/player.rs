@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 
 use glam::Vec3;
+use renderer_protocol::{entity::PlayerEntityOutput, input::PlayerEntityInput};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -12,17 +13,7 @@ pub struct PlayerEntity {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum PlayerEntityInput {
-    NewPosition(Vec3),
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum PlayerEntityMessage {
-    NewPosition(Vec3),
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum PlayerEntityOutput {
     NewPosition(Vec3),
 }
 

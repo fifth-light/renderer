@@ -1,7 +1,7 @@
-use renderer::winit::{App, NoOpAppcallCallback};
+use renderer::{gui::connect::tokio::TokioConnectParam, winit::App};
 
 fn main() {
     env_logger::init();
 
-    App::run(NoOpAppcallCallback::default());
+    App::<TokioConnectParam>::run();
 }

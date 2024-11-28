@@ -2495,9 +2495,11 @@ version = "0.1.0"
 dependencies = [
  "binrw",
  "bytemuck",
+ "bytes",
  "egui",
  "egui-wgpu",
  "egui-winit",
+ "futures",
  "getrandom",
  "glam",
  "gltf",
@@ -2506,7 +2508,13 @@ dependencies = [
  "modular-bitfield",
  "pollster",
  "renderer-perf-tracker",
+ "renderer-protocol",
+ "serde",
  "tobj",
+ "tokio",
+ "tokio-serde",
+ "tokio-tungstenite",
+ "uuid",
  "web-time",
  "wgpu",
  "winit",
@@ -2542,6 +2550,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "renderer-protocol"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "renderer-server"
 version = "0.1.0"
 dependencies = [
@@ -2552,6 +2569,7 @@ dependencies = [
  "glam",
  "log",
  "renderer-perf-tracker",
+ "renderer-protocol",
  "serde",
  "tokio",
  "tokio-serde",
@@ -2564,11 +2582,14 @@ dependencies = [
 name = "renderer-web"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "console_error_panic_hook",
  "console_log",
  "getrandom",
  "log",
  "renderer",
+ "serde",
+ "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",

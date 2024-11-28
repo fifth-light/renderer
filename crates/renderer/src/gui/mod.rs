@@ -1,5 +1,6 @@
 use std::sync::mpsc::Sender;
 
+use connect::{connect, connecting, ConnectParam, ConnectionStatus};
 use egui::Context;
 use error::error_dialog;
 use glam::Vec3;
@@ -8,29 +9,45 @@ use perf::perf_info;
 use renderer_perf_tracker::PerformanceTracker;
 use web_time::Instant;
 
-use crate::renderer::{camera::PositionController, uniform::light::GlobalLightParam, Renderer};
+use crate::{
+    client::ConnectionState,
+    renderer::{camera::PositionController, uniform::light::GlobalLightParam, Renderer},
+    transport::{Transport, TransportParam},
+};
 
+pub mod connect;
 mod error;
 pub mod event;
 mod light;
 mod perf;
 pub(crate) mod state;
 
-#[derive(Default)]
-pub struct GuiState {
+pub struct GuiState<CP: ConnectParam> {
     errors: Vec<String>,
+    selected_param: usize,
+    connect_params: Vec<CP>,
 }
 
-impl GuiState {
+impl<CP: ConnectParam> Default for GuiState<CP> {
+    fn default() -> Self {
+        Self {
+            errors: Vec::default(),
+            selected_param: 0,
+            connect_params: Vec::default(),
+        }
+    }
+}
+
+impl<CP: ConnectParam> GuiState<CP> {
     pub fn add_error(&mut self, error: String) {
         self.errors.push(error)
     }
 }
 
-#[derive(Debug, Clone)]
 pub enum GuiAction {
     SetLightParam(GlobalLightParam),
     SetBackgroundColor(Vec3),
+    Connect(Box<dyn TransportParam>),
 }
 
 pub struct GuiParam<'a> {
@@ -38,12 +55,30 @@ pub struct GuiParam<'a> {
     pub renderer: &'a Renderer,
     pub perf_tracker: &'a PerformanceTracker,
     pub position_controller: &'a mut PositionController,
+    pub connection_status: Option<ConnectionStatus>,
     pub gui_actions_tx: &'a mut Sender<GuiAction>,
 }
 
-pub fn gui_main(ctx: &Context, param: GuiParam, state: &mut GuiState) {
+pub fn gui_main<CP: ConnectParam>(ctx: &Context, param: GuiParam, state: &mut GuiState<CP>) {
     perf_info(ctx, param.perf_tracker);
     light_param(ctx, param.renderer, param.gui_actions_tx);
+    if let Some(connection_status) = param.connection_status {
+        match connection_status {
+            ConnectionStatus::Connecting
+            | ConnectionStatus::Handshaking
+            | ConnectionStatus::SyncingWorld { .. } => {
+                connecting(ctx, connection_status);
+            }
+            ConnectionStatus::Connected | ConnectionStatus::Closed => {}
+        }
+    } else {
+        connect(
+            ctx,
+            &mut state.selected_param,
+            &mut state.connect_params,
+            param.gui_actions_tx,
+        );
+    }
 
     let mut remove_index = Vec::new();
     for (index, error) in state.errors.iter().enumerate() {

@@ -1,6 +1,7 @@
 use std::{collections::VecDeque, fmt::Debug};
 
 use glam::Vec3;
+use renderer_protocol::entity::BaseEntityData;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -41,12 +42,6 @@ pub trait Entity: Debug {
         pending_messages: &mut VecDeque<Self::Message>,
         on_change: impl FnMut(Self::Output),
     );
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BaseEntityData {
-    pub id: Uuid,
-    pub position: Vec3,
 }
 
 impl State for BaseEntityData {

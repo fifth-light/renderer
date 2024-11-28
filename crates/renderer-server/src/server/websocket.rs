@@ -11,15 +11,12 @@ use bytes::{Bytes, BytesMut};
 use futures::SinkExt;
 use futures::StreamExt;
 use log::{info, warn};
+use renderer_protocol::message::{ClientMessage, ServerMessage};
 use tokio::net::TcpListener;
 use tokio_serde::{Deserializer, Framed, Serializer};
 use tokio_tungstenite::tungstenite::{self, Message};
 
-use super::{
-    message::{ClientMessage, ServerMessage},
-    serve::serve,
-    Server,
-};
+use super::{serve::serve, Server};
 
 #[derive(Debug)]
 pub enum WebSocketServerError<SE> {
@@ -59,8 +56,9 @@ impl<Codec> WebSocketServer<Codec> {
     }
 }
 
-impl<SE: Error + Send + Sync + 'static, Codec> WebSocketServer<Codec>
+impl<SE, Codec> WebSocketServer<Codec>
 where
+    SE: Error + Send + Sync + 'static,
     Codec: Deserializer<ClientMessage, Error = SE>
         + Serializer<ServerMessage, Error = SE>
         + Send

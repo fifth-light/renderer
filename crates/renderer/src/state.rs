@@ -1,5 +1,6 @@
 use crate::{
-    gui::{event::GuiEventHandler, state::EguiState, GuiAction},
+    client::Client,
+    gui::{connect::ConnectParam, event::GuiEventHandler, state::EguiState, GuiAction},
     renderer::{
         camera::{CameraProjection, PositionController},
         pipeline::Pipelines,
@@ -27,7 +28,7 @@ pub enum RenderResult {
     SurfaceLost,
 }
 
-pub struct State<'a> {
+pub struct State<'a, CP: ConnectParam> {
     instance: Instance,
     adapter: Adapter,
     surface: Option<Surface<'a>>,
@@ -44,10 +45,12 @@ pub struct State<'a> {
     pub position_controller: PositionController,
     last_render_time: Option<Instant>,
     rotation_speed: f32,
-    gui_state: EguiState,
+
+    client: Option<Client>,
+    gui_state: EguiState<CP>,
 }
 
-impl<'a> State<'a> {
+impl<'a, CP: ConnectParam> State<'a, CP> {
     fn create_config(
         surface: &Surface,
         adapter: &Adapter,
@@ -149,6 +152,7 @@ impl<'a> State<'a> {
             position_controller: PositionController::default(),
             last_render_time: None,
             rotation_speed: 0.3,
+            client: None,
             gui_state,
         }
     }
@@ -224,12 +228,20 @@ impl<'a> State<'a> {
                 GuiAction::SetBackgroundColor(color) => {
                     self.renderer.set_background_color(color);
                 }
+                GuiAction::Connect(param) => {
+                    self.client = Some(Client::new(param.connect()));
+                }
             }
         }
     }
 
     pub fn render(&mut self, display_target: &impl RenderTarget) -> RenderResult {
         self.handle_gui_events();
+        if let Some(client) = self.client.as_mut() {
+            if !client.tick(&mut self.gui_state.state) {
+                self.client = None;
+            }
+        }
 
         let surface = match &self.surface {
             Some(surface) => surface,
@@ -269,42 +281,42 @@ impl<'a> State<'a> {
         self.renderer.render(&mut ongoing_state);
 
         // Egui
-        if self.gui_state.active {
-            let full_output = self.gui_state.run(
-                &self.renderer,
-                &self.perf_tracker,
-                &mut self.position_controller,
-                &start_time,
-            );
-            let mut event_handler = self.gui_state.event_handler.lock().unwrap();
-            let pixels_per_point = event_handler.egui_context().zoom_factor()
-                * display_target.native_pixels_per_point();
-            let screen_descriptor = egui_wgpu::ScreenDescriptor {
-                size_in_pixels: [self.size.0, self.size.1],
-                pixels_per_point,
-            };
-            event_handler.handle_platform_output(full_output.platform_output);
-            let paint_jobs = event_handler
-                .egui_context()
-                .tessellate(full_output.shapes, full_output.pixels_per_point);
-            for (id, image_delta) in &full_output.textures_delta.set {
-                self.gui_state
-                    .renderer
-                    .update_texture(&self.device, &self.queue, *id, image_delta);
-            }
-            self.gui_state.renderer.update_buffers(
-                &self.device,
-                &self.queue,
-                &mut ongoing_state.encoder,
-                &paint_jobs,
-                &screen_descriptor,
-            );
-            self.gui_state.renderer.render(
-                &mut ongoing_state.render_pass,
-                &paint_jobs,
-                &screen_descriptor,
-            );
+        let full_output = self.gui_state.run(
+            &self.renderer,
+            &self.perf_tracker,
+            self.client.as_ref(),
+            &mut self.position_controller,
+            &start_time,
+        );
+        let mut event_handler = self.gui_state.event_handler.lock().unwrap();
+        let pixels_per_point =
+            event_handler.egui_context().zoom_factor() * display_target.native_pixels_per_point();
+        let screen_descriptor = egui_wgpu::ScreenDescriptor {
+            size_in_pixels: [self.size.0, self.size.1],
+            pixels_per_point,
+        };
+        event_handler.handle_platform_output(full_output.platform_output);
+        let paint_jobs = event_handler
+            .egui_context()
+            .tessellate(full_output.shapes, full_output.pixels_per_point);
+        for (id, image_delta) in &full_output.textures_delta.set {
+            self.gui_state
+                .renderer
+                .update_texture(&self.device, &self.queue, *id, image_delta);
         }
+        self.gui_state.renderer.update_buffers(
+            &self.device,
+            &self.queue,
+            &mut ongoing_state.encoder,
+            &paint_jobs,
+            &screen_descriptor,
+        );
+        self.gui_state.renderer.render(
+            &mut ongoing_state.render_pass,
+            &paint_jobs,
+            &screen_descriptor,
+        );
+
         ongoing_state.finish(&self.queue);
 
         display_target.pre_present_notify();
@@ -318,10 +330,11 @@ impl<'a> State<'a> {
     }
 
     pub fn egui_active(&self) -> bool {
-        self.gui_state.active
+        // TODO
+        true
     }
 
     pub fn set_egui_active(&mut self, active: bool) {
-        self.gui_state.active = active;
+        // TODO
     }
 }

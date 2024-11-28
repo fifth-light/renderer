@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 
 use glam::Vec3;
+use renderer_protocol::entity::TestEntityOutput;
 use serde::{Deserialize, Serialize};
 
 use super::{BaseEntityData, Entity, Message, Output};
@@ -12,11 +13,6 @@ pub struct TestEntity {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TestEntityMessage {
-    NewPosition(Vec3),
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum TestEntityOutput {
     NewPosition(Vec3),
 }
 

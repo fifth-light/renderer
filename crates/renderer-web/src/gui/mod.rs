@@ -1,4 +1,11 @@
+use renderer::{
+    egui::{Context, Pos2, RawInput, Rect},
+    gui::event::GuiEventHandler,
+};
+
 use crate::MouseButton;
+
+pub mod connect;
 
 impl From<MouseButton> for renderer::egui::PointerButton {
     fn from(mouse_button: MouseButton) -> Self {
@@ -14,14 +21,12 @@ impl From<MouseButton> for renderer::egui::PointerButton {
 }
 
 pub struct WebEventHandler {
-    egui_context: renderer::egui::Context,
-    raw_input: renderer::egui::RawInput,
+    egui_context: Context,
+    raw_input: RawInput,
 }
 
 impl WebEventHandler {
     pub fn new(size: (u32, u32)) -> Self {
-        use renderer::egui::{Pos2, RawInput, Rect};
-
         let raw_input = RawInput {
             screen_rect: Some(Rect {
                 min: Pos2::ZERO,
@@ -97,7 +102,7 @@ impl WebEventHandler {
     }
 }
 
-impl renderer::gui::event::GuiEventHandler for WebEventHandler {
+impl GuiEventHandler for WebEventHandler {
     fn egui_context(&self) -> &renderer::egui::Context {
         &self.egui_context
     }

@@ -30,6 +30,7 @@ async fn main() {
     };
 
     tokio::select! {
+        biased;
         serve_result = serve => {
             let serve_result = serve_result.expect("Serve crashed");
             if let Err(err) = serve_result {

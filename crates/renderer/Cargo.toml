@@ -6,9 +6,11 @@ publish = false
 
 [features]
 winit = ["dep:winit", "egui-winit", "pollster"]
+tokio-transport = ["tokio", "tokio-tungstenite", "tokio-serde", "futures"]
 
 [dependencies]
 renderer-perf-tracker.path = "../renderer-perf-tracker"
+renderer-protocol.path = "../renderer-protocol"
 bytemuck.workspace = true
 glam.workspace = true
 gltf.workspace = true
@@ -25,3 +27,15 @@ modular-bitfield.workspace = true
 pollster = { workspace = true, optional = true }
 web-time.workspace = true
 getrandom.workspace = true
+uuid.workspace = true
+serde.workspace = true
+tokio = { workspace = true, optional = true, features = [
+    "rt-multi-thread",
+    "net",
+    "sync",
+    "macros",
+] }
+tokio-tungstenite = { workspace = true, optional = true }
+tokio-serde = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
+bytes.workspace = true

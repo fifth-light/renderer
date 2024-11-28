@@ -1,12 +1,15 @@
 #![cfg(not(target_family = "wasm"))]
-use std::{cmp::Ordering, sync::Arc};
+use std::{
+    cmp::Ordering,
+    sync::{Arc, Mutex},
+};
 
 use log::{debug, info, warn};
 use pollster::FutureExt;
 use wgpu::rwh::{DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle};
 use winit::{
     application::ApplicationHandler,
-    dpi::PhysicalSize,
+    dpi::{LogicalSize, PhysicalSize},
     event::{DeviceEvent, DeviceId, ElementState, MouseScrollDelta, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopBuilder},
     keyboard::{KeyCode, PhysicalKey},
@@ -16,22 +19,10 @@ use winit::{
 pub use winit;
 
 use crate::{
+    gui::connect::{tokio::TokioConnectParam, ConnectParam},
     state::{RenderResult, State},
     RenderTarget,
 };
-
-pub trait AppCallback {
-    fn event_loop_building<T: 'static>(&mut self, _event_loop_builder: &mut EventLoopBuilder<T>) {}
-    fn window_creating(&mut self, param: WindowAttributes) -> WindowAttributes {
-        param.with_inner_size(PhysicalSize::new(720, 480))
-    }
-    fn window_created(&mut self, _window: &Window) {}
-}
-
-#[derive(Default)]
-pub struct NoOpAppcallCallback {}
-
-impl AppCallback for NoOpAppcallCallback {}
 
 struct WindowRenderTarget {
     window: Arc<Window>,
@@ -108,16 +99,15 @@ impl crate::gui::event::GuiEventHandler for WindowEventHandler {
     }
 }
 
-pub struct App<Callback: AppCallback> {
-    state: Option<State<'static>>,
+pub struct App<CP: ConnectParam> {
+    state: Option<State<'static, CP>>,
     render_target: Option<Arc<WindowRenderTarget>>,
     window_size: Option<PhysicalSize<u32>>,
-    event_handler: Option<Arc<std::sync::Mutex<WindowEventHandler>>>,
-    callback: Callback,
+    event_handler: Option<Arc<Mutex<WindowEventHandler>>>,
 }
 
-impl<Callback: AppCallback> App<Callback> {
-    pub fn run(callback: Callback) {
+impl<CP: ConnectParam> App<CP> {
+    pub fn run() {
         let event_loop = EventLoop::new().expect("Failed to create event loop");
 
         event_loop.set_control_flow(ControlFlow::Wait);
@@ -127,7 +117,6 @@ impl<Callback: AppCallback> App<Callback> {
             render_target: Default::default(),
             window_size: Default::default(),
             event_handler: None,
-            callback,
         };
 
         event_loop
@@ -136,7 +125,7 @@ impl<Callback: AppCallback> App<Callback> {
     }
 }
 
-impl<Callback: AppCallback> App<Callback> {
+impl<CP: ConnectParam> App<CP> {
     fn update_cursor_grab(window: &Window, grab: bool) {
         window.set_cursor_visible(!grab);
         if grab {
@@ -183,16 +172,15 @@ impl<Callback: AppCallback> App<Callback> {
     }
 }
 
-impl<Callback: AppCallback> ApplicationHandler for App<Callback> {
+impl<CP: ConnectParam> ApplicationHandler for App<CP> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         debug!("Resumed");
         let render_target = self.render_target.get_or_insert_with(|| {
-            let param = WindowAttributes::default();
-            let param = self.callback.window_creating(param);
             let window = event_loop
-                .create_window(param)
+                .create_window(
+                    WindowAttributes::default().with_inner_size(LogicalSize::new(720, 480)),
+                )
                 .expect("Failed to create window");
-            self.callback.window_created(&window);
             debug!("Window created, reported size: {:?}", window.inner_size());
             Arc::new(WindowRenderTarget::new(window))
         });

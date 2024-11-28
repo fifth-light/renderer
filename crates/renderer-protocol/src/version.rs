@@ -1,10 +1,6 @@
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+use std::fmt::{self, Display, Formatter};
 
-use crate::{
-    entity::player::PlayerEntityInput,
-    world::{EntityStates, TickOutput},
-};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct VersionData {
@@ -29,20 +25,12 @@ impl VersionData {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum ServerMessage {
-    Handshake {
-        version: VersionData,
-    },
-    SyncWorld {
-        player_id: Uuid,
-        entity_states: EntityStates,
-    },
-    TickOutput(TickOutput),
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum ClientMessage {
-    Handshake { version: VersionData },
-    PlayerInput(PlayerEntityInput),
+impl Display for VersionData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} ({}.{}.{})",
+            self.version_string, self.version_code.0, self.version_code.1, self.version_code.2
+        )
+    }
 }

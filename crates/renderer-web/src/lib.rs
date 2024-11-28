@@ -2,7 +2,7 @@
 
 use std::{ffi::c_void, ptr::NonNull, sync::Arc};
 
-use gui::WebEventHandler;
+use gui::{connect::WebSocketConnectParam, WebEventHandler};
 use log::{info, Level};
 use renderer::{state::State, RenderTarget};
 use wasm_bindgen::prelude::*;
@@ -13,6 +13,7 @@ use wgpu::rwh::{
 };
 
 mod gui;
+mod transport;
 
 struct CanvasRenderTarget {
     canvas: HtmlCanvasElement,
@@ -77,7 +78,7 @@ pub enum MouseButton {
 
 #[wasm_bindgen]
 pub struct StateHolder {
-    state: State<'static>,
+    state: State<'static, WebSocketConnectParam>,
     render_target: Arc<CanvasRenderTarget>,
 
     event_handler: Arc<std::sync::Mutex<WebEventHandler>>,
@@ -86,7 +87,7 @@ pub struct StateHolder {
 #[wasm_bindgen]
 impl StateHolder {
     fn new(
-        state: State<'static>,
+        state: State<'static, WebSocketConnectParam>,
         render_target: Arc<CanvasRenderTarget>,
         event_handler: Arc<std::sync::Mutex<WebEventHandler>>,
     ) -> Self {

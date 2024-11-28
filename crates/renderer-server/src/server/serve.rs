@@ -1,8 +1,7 @@
 use std::{error::Error, future::Future};
 
 use futures::{Sink, Stream};
-
-use super::message::{ClientMessage, ServerMessage};
+use renderer_protocol::message::{ClientMessage, ServerMessage};
 
 #[allow(async_fn_in_trait)]
 pub trait Serve {

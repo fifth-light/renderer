@@ -2,18 +2,13 @@ use std::{
     collections::{hash_map::Entry, HashMap, HashSet, VecDeque},
     error::Error,
     fmt::{self, Display, Formatter},
-    mem,
 };
 
 use log::warn;
-use serde::{Deserialize, Serialize};
+use renderer_protocol::{entity::EntityStates, input::PlayerEntityInput, tick::TickOutput};
 use uuid::Uuid;
 
-use crate::entity::{
-    player::{PlayerEntity, PlayerEntityInput, PlayerEntityOutput},
-    test::{TestEntity, TestEntityOutput},
-    BaseEntityData, Entity,
-};
+use crate::entity::{player::PlayerEntity, test::TestEntity, Entity};
 
 #[derive(Debug)]
 pub struct EntityAlreadyExists;
@@ -136,12 +131,6 @@ impl EntityItems<PlayerEntity> {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
-pub struct EntityStates {
-    test: Vec<BaseEntityData>,
-    player: Vec<BaseEntityData>,
-}
-
 #[derive(Debug, Default)]
 pub struct Entities {
     test: EntityItems<TestEntity>,
@@ -193,35 +182,6 @@ impl Entities {
             if !has_message {
                 break;
             }
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct EntitiesOutputs {
-    test: Vec<(Uuid, TestEntityOutput)>,
-    player: Vec<(Uuid, PlayerEntityOutput)>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct EntitiesIds {
-    test: Vec<Uuid>,
-    player: Vec<Uuid>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct TickOutput {
-    new_entity_states: EntityStates,
-    entity_outputs: EntitiesOutputs,
-    removed_entity_uuids: EntitiesIds,
-}
-
-impl TickOutput {
-    fn take(&mut self) -> Self {
-        Self {
-            new_entity_states: mem::take(&mut self.new_entity_states),
-            entity_outputs: mem::take(&mut self.entity_outputs),
-            removed_entity_uuids: mem::take(&mut self.removed_entity_uuids),
         }
     }
 }

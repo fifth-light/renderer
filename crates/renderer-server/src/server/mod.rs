@@ -11,6 +11,7 @@ use crossbeam::queue::SegQueue;
 use futures::SinkExt;
 use log::{trace, warn};
 use renderer_perf_tracker::PerformanceTracker;
+use renderer_protocol::{input::PlayerEntityInput, tick::TickOutput};
 use serde::{Deserialize, Serialize};
 use serve::Serve;
 use tokio::{
@@ -20,13 +21,9 @@ use tokio::{
 use uuid::Uuid;
 use web_time::Instant;
 
-use crate::{
-    entity::player::PlayerEntityInput,
-    world::{TickOutput, World},
-};
+use crate::world::World;
 
 pub mod connection;
-pub mod message;
 pub mod serve;
 pub mod websocket;
 
