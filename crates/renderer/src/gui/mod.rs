@@ -2,6 +2,7 @@ use std::sync::mpsc::Sender;
 
 use connect::{connect, connecting, ConnectParam, ConnectionStatus};
 use egui::Context;
+use entity::entities;
 use error::error_dialog;
 use glam::Vec3;
 use light::light_param;
@@ -10,12 +11,13 @@ use renderer_perf_tracker::PerformanceTracker;
 use web_time::Instant;
 
 use crate::{
-    client::ConnectionState,
+    client::world::Entities,
     renderer::{camera::PositionController, uniform::light::GlobalLightParam, Renderer},
-    transport::{Transport, TransportParam},
+    transport::TransportParam,
 };
 
 pub mod connect;
+mod entity;
 mod error;
 pub mod event;
 mod light;
@@ -56,6 +58,7 @@ pub struct GuiParam<'a> {
     pub perf_tracker: &'a PerformanceTracker,
     pub position_controller: &'a mut PositionController,
     pub connection_status: Option<ConnectionStatus>,
+    pub entities: Option<&'a Entities>,
     pub gui_actions_tx: &'a mut Sender<GuiAction>,
 }
 
@@ -78,6 +81,9 @@ pub fn gui_main<CP: ConnectParam>(ctx: &Context, param: GuiParam, state: &mut Gu
             &mut state.connect_params,
             param.gui_actions_tx,
         );
+    }
+    if let Some(current_entities) = param.entities {
+        entities(ctx, current_entities);
     }
 
     let mut remove_index = Vec::new();

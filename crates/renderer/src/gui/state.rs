@@ -10,7 +10,7 @@ use web_time::Instant;
 use wgpu::{Device, SurfaceConfiguration};
 
 use crate::{
-    client::Client,
+    client::{world::World, Client},
     renderer::{camera::PositionController, Renderer, DEPTH_TEXTURE_FORMAT},
 };
 
@@ -69,6 +69,7 @@ impl<CP: ConnectParam> EguiState<CP> {
                     perf_tracker,
                     position_controller,
                     connection_status,
+                    entities: client.and_then(Client::world).map(|world| &world.entities),
                     gui_actions_tx: &mut self.gui_actions_tx,
                 },
                 &mut self.state,

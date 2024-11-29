@@ -180,7 +180,9 @@ where
                             }
                             ClientMessage::PlayerInput(input) => {
                                 trace!("Entity input: {:?}", input);
-                                self.server.input_queue.push((player_id, input));
+                                for input in input {
+                                    self.server.input_queue.push((player_id, input));
+                                }
                             }
                         }
                     }

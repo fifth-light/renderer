@@ -20,5 +20,5 @@ pub enum ServerMessage {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ClientMessage {
     Handshake { version: VersionData },
-    PlayerInput(PlayerEntityInput),
+    PlayerInput(Vec<PlayerEntityInput>),
 }

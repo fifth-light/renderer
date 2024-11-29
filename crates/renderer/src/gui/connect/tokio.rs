@@ -1,25 +1,11 @@
-use std::{
-    default,
-    fmt::{self, Debug, Display, Formatter},
-    mem,
-    sync::mpsc::Sender,
-};
+use std::fmt::{self, Display, Formatter};
 
-use egui::{ComboBox, Context, Grid, Ui};
+use egui::{ComboBox, Grid, Ui};
 use serde::{Deserialize, Serialize};
 use tokio_serde::formats::{Bincode, Json};
-use tokio_tungstenite::tungstenite::{
-    client::IntoClientRequest,
-    http::{Request, Uri},
-};
+use tokio_tungstenite::tungstenite::{client::IntoClientRequest, http::Uri};
 
-use crate::{
-    gui::GuiAction,
-    transport::{
-        tokio::{TokioTransport, TokioTransportParam},
-        TransportParam,
-    },
-};
+use crate::transport::{tokio::TokioTransportParam, TransportParam};
 
 use super::ConnectParam;
 

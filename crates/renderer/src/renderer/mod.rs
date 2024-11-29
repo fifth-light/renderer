@@ -30,6 +30,8 @@ pub(crate) mod uniform;
 
 pub use depth_texture::DEPTH_TEXTURE_FORMAT;
 
+use crate::client::world::World;
+
 pub enum RenderBindGroups<'a> {
     Color,
     Texture { texture: &'a BindGroup },
@@ -325,7 +327,7 @@ pub struct Renderer {
     view_aspect: f32,
     background_color: Vec3,
 
-    free_camera: Camera,
+    camera: Camera,
     camera_updated: bool,
 
     depth_texture: DepthTexture,
@@ -369,7 +371,7 @@ impl Renderer {
             bind_group_layout,
             depth_texture,
             view_aspect,
-            free_camera: camera,
+            camera,
             camera_updated: false,
             global_bind_group,
             light_uniform,
@@ -387,8 +389,12 @@ impl Renderer {
     }
 
     pub fn update_camera(&mut self, func: impl FnOnce(&mut Camera)) {
-        func(&mut self.free_camera);
+        func(&mut self.camera);
         self.camera_updated = true;
+    }
+
+    pub fn camera(&self) -> &Camera {
+        &self.camera
     }
 
     pub fn set_global_light_param(&mut self, param: GlobalLightParam) {
@@ -409,7 +415,7 @@ impl Renderer {
 
     pub fn resize(&mut self, device: &Device, size: (u32, u32)) {
         self.view_aspect = size.0 as f32 / size.1 as f32;
-        self.free_camera
+        self.camera
             .update_uniform(&mut self.camera_uniform, self.view_aspect);
 
         self.depth_texture = DepthTexture::new(device, (size.0, size.1));
@@ -419,14 +425,16 @@ impl Renderer {
         if self.camera_updated {
             self.camera_updated = false;
 
-            self.free_camera.update_aspect(self.view_aspect);
-            self.free_camera
+            self.camera.update_aspect(self.view_aspect);
+            self.camera
                 .update_uniform(&mut self.camera_uniform, self.view_aspect);
             self.camera_uniform.update(queue);
         }
     }
 
-    pub fn render<'a>(&'a self, _ongoing_state: &mut OngoingRenderState<'a>) {}
+    pub fn render<'a>(&'a self, ongoing_state: &mut OngoingRenderState<'a>, world: &World) {
+        world.render(ongoing_state);
+    }
 
     pub fn dump_depth(&self, device: &Device, queue: &Queue) -> GrayImage {
         self.depth_texture.dump_depth(device, queue)

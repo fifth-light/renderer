@@ -1,13 +1,10 @@
-use std::{
-    fmt::{self, Display, Formatter},
-    sync::mpsc::Sender,
-};
+use std::sync::mpsc::Sender;
 
 use egui::{Align2, Button, ComboBox, Context, Ui, Vec2, Window};
 use renderer_protocol::version::VersionData;
 use serde::{Deserialize, Serialize};
 
-use crate::{client::ConnectionState, transport::TransportParam};
+use crate::transport::TransportParam;
 
 use super::GuiAction;
 
@@ -65,7 +62,7 @@ pub fn connect<Param: ConnectParam>(
                     if let Some(selected_param) = params.get_mut(selected_index) {
                         if let Some(param) = selected_param.param() {
                             if ui.button("Connect").clicked() {
-                                gui_actions_tx.send(GuiAction::Connect(param));
+                                let _ = gui_actions_tx.send(GuiAction::Connect(param));
                             }
                         } else {
                             ui.add_enabled(false, Button::new("Connect"));

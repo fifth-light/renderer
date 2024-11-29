@@ -1,9 +1,7 @@
 use std::{
-    default,
     error::Error as StdError,
     fmt::{self, Debug, Display, Formatter},
     io,
-    net::SocketAddr,
     pin::pin,
     sync::Arc,
     thread::{self, JoinHandle},
@@ -12,14 +10,13 @@ use std::{
 use bytes::{Bytes, BytesMut};
 use futures::{SinkExt, StreamExt};
 use log::warn;
-use renderer_protocol::message::{self, ClientMessage, ServerMessage};
+use renderer_protocol::message::{ClientMessage, ServerMessage};
 use tokio::{
-    net::TcpStream,
     runtime::Runtime,
     select,
     sync::{mpsc, oneshot, Mutex},
 };
-use tokio_serde::{formats::Json, Deserializer, Framed, Serializer};
+use tokio_serde::{Deserializer, Framed, Serializer};
 use tokio_tungstenite::tungstenite::{self, http::Request, Message};
 
 use super::{Transport, TransportParam, TransportState};
@@ -68,7 +65,7 @@ enum State {
 
 #[derive(Debug)]
 pub struct TokioTransport {
-    thread_handle: JoinHandle<()>,
+    thread_handle: Option<JoinHandle<()>>,
     cancel_tx: Option<oneshot::Sender<()>>,
     close_tx: Option<oneshot::Sender<()>>,
     state: Arc<Mutex<State>>,
@@ -277,6 +274,9 @@ impl Transport for TokioTransport {
         if let Some(close_tx) = self.close_tx.take() {
             let _ = close_tx.send(());
         }
+        if let Some(handle) = self.thread_handle.take() {
+            handle.join().unwrap();
+        }
     }
 }
 
@@ -284,6 +284,9 @@ impl Drop for TokioTransport {
     fn drop(&mut self) {
         if let Some(cancel_tx) = self.cancel_tx.take() {
             let _ = cancel_tx.send(());
+        }
+        if let Some(handle) = self.thread_handle.take() {
+            handle.join().unwrap();
         }
     }
 }
@@ -311,9 +314,9 @@ where
         let request = self.request.clone();
         let codec = (self.codec_builder)();
         let transport = TokioTransport {
-            thread_handle: thread::spawn(move || {
+            thread_handle: Some(thread::spawn(move || {
                 transport_thread(request, cancel_rx, close_rx, thread_state, codec);
-            }),
+            })),
             cancel_tx: Some(cancel_tx),
             close_tx: Some(close_tx),
             state,

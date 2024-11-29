@@ -99,7 +99,7 @@ fn handle_event(
 ) -> InputStatus {
     match event {
         InputEvent::MotionEvent(motion_event) => {
-            if state.egui_active() {
+            if state.gui_active() {
                 {
                     let Some(event_handler) = event_handler else {
                         return InputStatus::Handled;
@@ -207,18 +207,18 @@ fn handle_event(
         InputEvent::KeyEvent(key_event) => {
             if let KeyAction::Down = key_event.action() {
                 if let Keycode::F10 = key_event.key_code() {
-                    state.set_egui_active(!state.egui_active());
+                    state.toggle_gui_active();
 
                     let Some(event_handler) = event_handler else {
                         return InputStatus::Handled;
                     };
                     let mut handler = event_handler.lock().unwrap();
-                    handler.set_pointer_captured(!state.egui_active());
+                    handler.set_pointer_captured(!state.gui_active());
 
                     return InputStatus::Handled;
                 }
             }
-            if state.egui_active() {
+            if state.gui_active() {
                 {
                     let Some(event_handler) = event_handler else {
                         return InputStatus::Handled;
@@ -377,7 +377,7 @@ fn android_main(app: AndroidApp) {
 
                         let limits = new_state.limits();
                         let mut handler = event_handler.lock().unwrap();
-                        handler.set_pointer_captured(!new_state.egui_active());
+                        handler.set_pointer_captured(!new_state.gui_active());
                         handler.set_max_texture_side(limits.max_texture_dimension_2d as usize);
 
                         state = Some(new_state);

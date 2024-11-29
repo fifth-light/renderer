@@ -150,12 +150,12 @@ impl StateHolder {
         self.state.update_rotation((delta_x, delta_y));
     }
 
-    pub fn egui_active(&self) -> bool {
-        self.state.egui_active()
+    pub fn gui_active(&self) -> bool {
+        self.state.gui_active()
     }
 
-    pub fn set_egui_active(&mut self, active: bool) {
-        self.state.set_egui_active(active);
+    pub fn set_gui_active(&mut self, active: bool) {
+        self.state.toggle_gui_active();
     }
 
     pub fn set_focused(&mut self, focused: bool) {
@@ -174,7 +174,7 @@ impl StateHolder {
 
     pub fn mouse_moved(&mut self, x: f32, y: f32) {
         {
-            if self.state.egui_active() {
+            if self.state.gui_active() {
                 let mut event_handler = self.event_handler.lock().unwrap();
                 event_handler.mouse_moved((x, y));
             }
@@ -183,7 +183,7 @@ impl StateHolder {
 
     pub fn mouse_button(&mut self, x: f32, y: f32, button: MouseButton, pressed: bool) {
         {
-            if self.state.egui_active() {
+            if self.state.gui_active() {
                 let mut event_handler = self.event_handler.lock().unwrap();
                 event_handler.mouse_button((x, y), button, pressed);
             }

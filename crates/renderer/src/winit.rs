@@ -11,7 +11,7 @@ use winit::{
     application::ApplicationHandler,
     dpi::{LogicalSize, PhysicalSize},
     event::{DeviceEvent, DeviceId, ElementState, MouseScrollDelta, WindowEvent},
-    event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopBuilder},
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{KeyCode, PhysicalKey},
     window::{CursorGrabMode, Fullscreen, Window, WindowAttributes, WindowId},
 };
@@ -19,7 +19,7 @@ use winit::{
 pub use winit;
 
 use crate::{
-    gui::connect::{tokio::TokioConnectParam, ConnectParam},
+    gui::connect::ConnectParam,
     state::{RenderResult, State},
     RenderTarget,
 };
@@ -209,7 +209,7 @@ impl<CP: ConnectParam> ApplicationHandler for App<CP> {
     ) {
         let Some(state) = &mut self.state else { return };
 
-        if state.egui_active() {
+        if state.gui_active() {
             return;
         }
 
@@ -261,9 +261,8 @@ impl<CP: ConnectParam> ApplicationHandler for App<CP> {
                 }
                 return;
             }
-
             WindowEvent::Focused(focused) => {
-                let should_grab = *focused && !state.egui_active();
+                let should_grab = *focused && !state.gui_active();
                 Self::update_cursor_grab(&render_target.window, should_grab);
                 return;
             }
@@ -301,10 +300,9 @@ impl<CP: ConnectParam> ApplicationHandler for App<CP> {
 
                 PhysicalKey::Code(KeyCode::F10) => {
                     if !event.repeat && event.state == ElementState::Released {
-                        let active = !state.egui_active();
-                        state.set_egui_active(active);
+                        state.toggle_gui_active();
 
-                        let should_grab = render_target.window.has_focus() && !state.egui_active();
+                        let should_grab = render_target.window.has_focus() && !state.gui_active();
                         Self::update_cursor_grab(&render_target.window, should_grab);
                     }
                     return;
@@ -314,7 +312,7 @@ impl<CP: ConnectParam> ApplicationHandler for App<CP> {
             _ => (),
         }
 
-        if state.egui_active() {
+        if state.gui_active() {
             // Since we always redraw, we can ignore the result
             let Some(event_handler) = self.event_handler.as_ref() else {
                 return;

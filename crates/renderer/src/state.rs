@@ -1,6 +1,11 @@
 use crate::{
     client::Client,
-    gui::{connect::ConnectParam, event::GuiEventHandler, state::EguiState, GuiAction},
+    gui::{
+        connect::{ConnectParam, ConnectionStatus},
+        event::GuiEventHandler,
+        state::EguiState,
+        GuiAction,
+    },
     renderer::{
         camera::{CameraProjection, PositionController},
         pipeline::Pipelines,
@@ -47,6 +52,7 @@ pub struct State<'a, CP: ConnectParam> {
     rotation_speed: f32,
 
     client: Option<Client>,
+    gui_active: bool,
     gui_state: EguiState<CP>,
 }
 
@@ -153,6 +159,7 @@ impl<'a, CP: ConnectParam> State<'a, CP> {
             last_render_time: None,
             rotation_speed: 0.3,
             client: None,
+            gui_active: true,
             gui_state,
         }
     }
@@ -238,7 +245,7 @@ impl<'a, CP: ConnectParam> State<'a, CP> {
     pub fn render(&mut self, display_target: &impl RenderTarget) -> RenderResult {
         self.handle_gui_events();
         if let Some(client) = self.client.as_mut() {
-            if !client.tick(&mut self.gui_state.state) {
+            if !client.tick(&mut self.renderer, &mut self.gui_state.state) {
                 self.client = None;
             }
         }
@@ -278,7 +285,9 @@ impl<'a, CP: ConnectParam> State<'a, CP> {
         let mut ongoing_state =
             OngoingRenderState::new(&self.device, &texture_view, &self.renderer);
 
-        self.renderer.render(&mut ongoing_state);
+        if let Some(world) = self.client.as_ref().and_then(Client::world) {
+            self.renderer.render(&mut ongoing_state, world);
+        }
 
         // Egui
         let full_output = self.gui_state.run(
@@ -329,12 +338,21 @@ impl<'a, CP: ConnectParam> State<'a, CP> {
         RenderResult::Succeed
     }
 
-    pub fn egui_active(&self) -> bool {
-        // TODO
-        true
+    pub fn gui_active(&self) -> bool {
+        match self.client.as_ref() {
+            Some(client) => match client.connection_status() {
+                ConnectionStatus::Connected => self.gui_active,
+                _ => true,
+            },
+            None => true,
+        }
     }
 
-    pub fn set_egui_active(&mut self, active: bool) {
-        // TODO
+    pub fn toggle_gui_active(&mut self) {
+        if let Some(client) = self.client.as_ref() {
+            if let ConnectionStatus::Connected = client.connection_status() {
+                self.gui_active = !self.gui_active
+            }
+        }
     }
 }

@@ -1,23 +1,30 @@
 use std::{
-    default,
     error::Error,
     fmt::{self, Display, Formatter},
 };
 
-use log::info;
+use log::{info, warn};
 use renderer_protocol::{
     message::{ClientMessage, ServerMessage},
     version::VersionData,
 };
 use uuid::Uuid;
+use world::World;
 
 use crate::{
     gui::{
         connect::{ConnectParam, ConnectionStatus},
         GuiState,
     },
+    renderer::{
+        camera::{Camera, PositionController},
+        Renderer,
+    },
     transport::{Transport, TransportState},
 };
+
+pub mod entity;
+pub mod world;
 
 #[derive(Debug)]
 enum ConnectionError {
@@ -49,11 +56,16 @@ pub enum ConnectionState {
     Connected {
         server_version: VersionData,
         player_id: Uuid,
+        world: World,
     },
 }
 
 impl ConnectionState {
-    fn tick(&mut self, transport: &mut dyn Transport) -> Result<bool, Box<dyn Error>> {
+    fn tick(
+        &mut self,
+        transport: &mut dyn Transport,
+        renderer: &mut Renderer,
+    ) -> Result<bool, Box<dyn Error>> {
         match self {
             ConnectionState::SendClientHandshake => {
                 info!("Handshake sent");
@@ -89,23 +101,33 @@ impl ConnectionState {
                     entity_states,
                 } = message
                 else {
-                    return Err(Box::new(ConnectionError::Handshake));
+                    return Err(Box::new(ConnectionError::WorldSync));
                 };
 
                 info!("Server world sync received with player id {:?}", player_id);
 
-                // TODO
+                let world = World::new(entity_states);
 
                 *self = ConnectionState::Connected {
                     server_version: server_version.clone(),
                     player_id,
+                    world,
                 };
                 Ok(true)
             }
             ConnectionState::Connected {
-                server_version,
-                player_id,
+                world, player_id, ..
             } => {
+                if let Some(player) = world.entities.player.get_mut(player_id) {
+                    player.update(renderer.camera());
+
+                    let mut input = vec![];
+                    player.send_input(&mut input);
+                    transport.send(ClientMessage::PlayerInput(input))?;
+                } else {
+                    warn!("Player not found: {:?}", player_id);
+                }
+
                 while let Some(message) = transport.receive()? {
                     match message {
                         ServerMessage::Handshake { .. } | ServerMessage::SyncWorld { .. } => {
@@ -113,11 +135,19 @@ impl ConnectionState {
                         }
                         ServerMessage::TickOutput(tick_output) => {
                             info!("Tick output: {:?}", tick_output);
+                            world.update(tick_output);
                         }
                     }
                 }
                 Ok(true)
             }
+        }
+    }
+
+    fn world(&self) -> Option<&World> {
+        match self {
+            ConnectionState::Connected { world, .. } => Some(world),
+            _ => None,
         }
     }
 }
@@ -136,7 +166,11 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn tick<CP: ConnectParam>(&mut self, gui_state: &mut GuiState<CP>) -> bool {
+    pub fn tick<CP: ConnectParam>(
+        &mut self,
+        renderer: &mut Renderer,
+        gui_state: &mut GuiState<CP>,
+    ) -> bool {
         match self.transport.state() {
             TransportState::Connecting => {
                 self.state = ClientState::Connecting;
@@ -144,7 +178,7 @@ impl Client {
             }
             TransportState::Connected => {
                 if let ClientState::Connected(ref mut state) = self.state {
-                    let result = state.tick(self.transport.as_mut());
+                    let result = state.tick(self.transport.as_mut(), renderer);
                     match result {
                         Ok(result) => result,
                         Err(error) => {
@@ -154,7 +188,7 @@ impl Client {
                     }
                 } else {
                     let mut state = ConnectionState::default();
-                    let result = state.tick(self.transport.as_mut());
+                    let result = state.tick(self.transport.as_mut(), renderer);
                     self.state = ClientState::Connected(state);
                     match result {
                         Ok(result) => result,
@@ -165,11 +199,22 @@ impl Client {
                     }
                 }
             }
-            TransportState::Closed => false,
+            TransportState::Closed => {
+                self.state = ClientState::Closed;
+                false
+            }
             TransportState::Failed(error) => {
                 gui_state.add_error(error.to_string());
                 false
             }
+        }
+    }
+
+    pub fn world(&self) -> Option<&World> {
+        if let ClientState::Connected(ref state) = self.state {
+            state.world()
+        } else {
+            None
         }
     }
 
