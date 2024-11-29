@@ -8,6 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RUSTFLAGS: -A warnings
 
 jobs:
   build:
@@ -30,4 +31,6 @@ jobs:
     - name: Archive artifacts
       uses: actions/upload-artifact@v4
       with:
-        path: target/x86_64-unknown-linux-gnu/release/renderer-desktop
+        path: |
+          target/x86_64-unknown-linux-gnu/release/renderer-desktop
+          target/x86_64-unknown-linux-gnu/release/renderer-server
