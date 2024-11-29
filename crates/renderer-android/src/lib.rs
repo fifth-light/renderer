@@ -17,14 +17,12 @@ use renderer::{
     egui_wgpu::wgpu::rwh::{
         DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle,
     },
+    gui::connect::tokio::TokioConnectParam,
     state::{RenderResult, State},
     RenderTarget,
 };
 
 mod gui;
-mod jni;
-
-type RendererState = State<'static, gui::AndroidEventHandler>;
 
 struct AndroidRenderTarget {
     android_app: AndroidApp,
@@ -79,22 +77,12 @@ impl RenderTarget for AndroidRenderTarget {
 }
 
 fn create_state(
-    app: &AndroidApp,
     size: (u32, u32),
     render_target: Arc<AndroidRenderTarget>,
     event_handler: Arc<Mutex<gui::AndroidEventHandler>>,
-) -> RendererState {
+) -> State<'static, TokioConnectParam> {
     info!("Create new state");
-    let mut new_state = RendererState::new(
-        render_target,
-        size,
-        event_handler.clone(),
-        Arc::new(gui::AndroidModelLoaderGui::new(app.clone())),
-    )
-    .block_on();
-    new_state.setup_scene();
-
-    new_state
+    State::new(render_target, size, event_handler.clone()).block_on()
 }
 
 #[derive(Default)]
@@ -104,14 +92,14 @@ struct PointerState {
 }
 
 fn handle_event(
-    state: &mut RendererState,
+    state: &mut State<'static, TokioConnectParam>,
     pointer_state: &mut PointerState,
     event: &InputEvent,
     event_handler: Option<&Arc<Mutex<gui::AndroidEventHandler>>>,
 ) -> InputStatus {
     match event {
         InputEvent::MotionEvent(motion_event) => {
-            if state.egui_active() {
+            if state.gui_active() {
                 {
                     let Some(event_handler) = event_handler else {
                         return InputStatus::Handled;
@@ -219,18 +207,18 @@ fn handle_event(
         InputEvent::KeyEvent(key_event) => {
             if let KeyAction::Down = key_event.action() {
                 if let Keycode::F10 = key_event.key_code() {
-                    state.set_egui_active(!state.egui_active());
+                    state.toggle_gui_active();
 
                     let Some(event_handler) = event_handler else {
                         return InputStatus::Handled;
                     };
                     let mut handler = event_handler.lock().unwrap();
-                    handler.set_pointer_captured(!state.egui_active());
+                    handler.set_pointer_captured(!state.gui_active());
 
                     return InputStatus::Handled;
                 }
             }
-            if state.egui_active() {
+            if state.gui_active() {
                 {
                     let Some(event_handler) = event_handler else {
                         return InputStatus::Handled;
@@ -315,7 +303,7 @@ fn android_main(app: AndroidApp) {
 
     let mut event_handler: Option<Arc<Mutex<gui::AndroidEventHandler>>> = None;
     let mut pointer_state = PointerState::default();
-    let mut state: Option<RendererState> = None;
+    let mut state: Option<State<'static, TokioConnectParam>> = None;
     let mut render_target: Option<Arc<AndroidRenderTarget>> = None;
 
     info!("Initializing");
@@ -385,11 +373,11 @@ fn android_main(app: AndroidApp) {
                         };
 
                         let new_state =
-                            create_state(&app, size, new_render_target, event_handler.clone());
+                            create_state(size, new_render_target, event_handler.clone());
 
                         let limits = new_state.limits();
                         let mut handler = event_handler.lock().unwrap();
-                        handler.set_pointer_captured(!new_state.egui_active());
+                        handler.set_pointer_captured(!new_state.gui_active());
                         handler.set_max_texture_side(limits.max_texture_dimension_2d as usize);
 
                         state = Some(new_state);
@@ -420,12 +408,8 @@ fn android_main(app: AndroidApp) {
                             info!("Resize state");
                             state.resize(size);
                         } else {
-                            let new_state = create_state(
-                                &app,
-                                size,
-                                render_target.clone(),
-                                event_handler.clone(),
-                            );
+                            let new_state =
+                                create_state(size, render_target.clone(), event_handler.clone());
                             state = Some(new_state);
                         }
                     }

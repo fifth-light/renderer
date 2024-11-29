@@ -1,14 +1,19 @@
-pub mod asset;
-pub mod perf;
+//#![allow(unused)]
+
+mod asset;
+mod client;
+pub mod gui;
 pub mod renderer;
 pub mod state;
+pub mod transport;
 
 #[cfg(feature = "winit")]
 pub mod winit;
 
-pub mod gui;
 pub use egui;
 pub use egui_wgpu;
+
+pub use renderer_protocol as protocol;
 
 use wgpu::{
     rwh::{HasDisplayHandle, HasWindowHandle},

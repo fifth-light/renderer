@@ -2,7 +2,7 @@
 
 use std::{ffi::c_void, ptr::NonNull, sync::Arc};
 
-use gui::{WebEventHandler, WebModelLoaderGui};
+use gui::{connect::WebSocketConnectParam, WebEventHandler};
 use log::{info, Level};
 use renderer::{state::State, RenderTarget};
 use wasm_bindgen::prelude::*;
@@ -13,6 +13,7 @@ use wgpu::rwh::{
 };
 
 mod gui;
+mod transport;
 
 struct CanvasRenderTarget {
     canvas: HtmlCanvasElement,
@@ -65,8 +66,6 @@ impl RenderTarget for CanvasRenderTarget {
     }
 }
 
-type RendererState = State<'static, WebEventHandler>;
-
 #[wasm_bindgen]
 #[derive(Debug, Clone, Copy)]
 pub enum MouseButton {
@@ -79,7 +78,7 @@ pub enum MouseButton {
 
 #[wasm_bindgen]
 pub struct StateHolder {
-    state: RendererState,
+    state: State<'static, WebSocketConnectParam>,
     render_target: Arc<CanvasRenderTarget>,
 
     event_handler: Arc<std::sync::Mutex<WebEventHandler>>,
@@ -88,7 +87,7 @@ pub struct StateHolder {
 #[wasm_bindgen]
 impl StateHolder {
     fn new(
-        state: RendererState,
+        state: State<'static, WebSocketConnectParam>,
         render_target: Arc<CanvasRenderTarget>,
         event_handler: Arc<std::sync::Mutex<WebEventHandler>>,
     ) -> Self {
@@ -151,12 +150,12 @@ impl StateHolder {
         self.state.update_rotation((delta_x, delta_y));
     }
 
-    pub fn egui_active(&self) -> bool {
-        self.state.egui_active()
+    pub fn gui_active(&self) -> bool {
+        self.state.gui_active()
     }
 
-    pub fn set_egui_active(&mut self, active: bool) {
-        self.state.set_egui_active(active);
+    pub fn set_gui_active(&mut self, active: bool) {
+        self.state.toggle_gui_active();
     }
 
     pub fn set_focused(&mut self, focused: bool) {
@@ -175,7 +174,7 @@ impl StateHolder {
 
     pub fn mouse_moved(&mut self, x: f32, y: f32) {
         {
-            if self.state.egui_active() {
+            if self.state.gui_active() {
                 let mut event_handler = self.event_handler.lock().unwrap();
                 event_handler.mouse_moved((x, y));
             }
@@ -184,7 +183,7 @@ impl StateHolder {
 
     pub fn mouse_button(&mut self, x: f32, y: f32, button: MouseButton, pressed: bool) {
         {
-            if self.state.egui_active() {
+            if self.state.gui_active() {
                 let mut event_handler = self.event_handler.lock().unwrap();
                 event_handler.mouse_button((x, y), button, pressed);
             }
@@ -213,18 +212,12 @@ pub fn run(redraw_handler: Function, create_handler: Function) {
 
     let (state, event_handler) = {
         let event_handler = Arc::new(std::sync::Mutex::new(WebEventHandler::new(size)));
-        let state = State::new(
-            target.clone(),
-            size,
-            event_handler.clone(),
-            Arc::new(WebModelLoaderGui),
-        );
+        let state = State::new(target.clone(), size, event_handler.clone());
         (state, event_handler)
     };
 
     wasm_bindgen_futures::spawn_local(async move {
-        let mut state = state.await;
-        state.setup_scene();
+        let state = state.await;
 
         {
             let native_pixels_per_point = window.device_pixel_ratio() as f32;

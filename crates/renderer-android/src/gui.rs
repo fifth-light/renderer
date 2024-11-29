@@ -1,23 +1,19 @@
-use std::sync::mpsc;
-
 use android_activity::{
     input::{Axis, KeyEvent, MotionAction, MotionEvent},
     AndroidApp,
 };
 use jni::{
     objects::{JObject, JValue},
-    sys::jlong,
     JavaVM,
 };
 use log::info;
 use ndk::configuration::UiModeNight;
 use renderer::{
-    asset::loader::AssetLoadParams,
     egui::{
         Context as EguiContext, Event, Modifiers, MouseWheelUnit, PlatformOutput, PointerButton,
         Pos2, RawInput, Rect, Theme, TouchDeviceId, TouchId, TouchPhase, Vec2,
     },
-    gui::{event::GuiEventHandler, GuiAction, ModelLoaderGui},
+    gui::event::GuiEventHandler,
 };
 
 use crate::{app_density, AndroidRenderTarget};
@@ -245,71 +241,5 @@ impl GuiEventHandler for AndroidEventHandler {
                 )
                 .expect("Call openUrl failed");
         }
-    }
-}
-
-pub struct AndroidModelLoaderGui {
-    app: AndroidApp,
-}
-
-impl AndroidModelLoaderGui {
-    pub fn new(app: AndroidApp) -> Self {
-        Self { app }
-    }
-
-    fn open_file(&self, tx: mpsc::Sender<GuiAction>, filters: &[&str]) {
-        let tx = Box::new(tx);
-        let tx = Box::into_raw(tx);
-        let tx = tx as jlong;
-
-        let java_vm = self.app.java_vm();
-        let activity = self.app.activity_object();
-        let mut jni_env = java_vm.get_env().unwrap();
-
-        let string_class = jni_env
-            .find_class("java/lang/String")
-            .expect("Failed to fetch class of String");
-        let mut filters_array = jni_env
-            .new_object_array(filters.len() as i32, string_class, JObject::null())
-            .expect("Failed to create file filters");
-        for (index, filter) in filters.iter().enumerate() {
-            let filter = jni_env
-                .new_string(filter)
-                .expect("Failed to create url string");
-            jni_env
-                .set_object_array_element(&mut filters_array, index as i32, filter)
-                .expect("Failed to set filter array item");
-        }
-        jni_env
-            .call_method(
-                activity,
-                "openFile",
-                "(J[Ljava/lang/String;)V",
-                &[JValue::Long(tx), JValue::Object(&filters_array)],
-            )
-            .expect("Call openFile failed");
-    }
-}
-
-impl ModelLoaderGui for AndroidModelLoaderGui {
-    fn ui(
-        &self,
-        ctx: &EguiContext,
-        param: &mut AssetLoadParams,
-        gui_actions_tx: &mut mpsc::Sender<GuiAction>,
-    ) {
-        use renderer::egui::{Align2, Window};
-
-        Window::new("Load Model")
-            .resizable([false, false])
-            .pivot(Align2::RIGHT_TOP)
-            .show(ctx, |ui| {
-                ui.checkbox(&mut param.disable_unlit, "Disable unlit");
-                if ui.button("Load GLTF / VRM").clicked() {
-                    let tx = gui_actions_tx.clone();
-                    // Android don't recognize gltf files
-                    self.open_file(tx, &["*/*"]);
-                }
-            });
     }
 }

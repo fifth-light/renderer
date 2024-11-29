@@ -1,13 +1,17 @@
 #![cfg(not(target_family = "wasm"))]
-use std::{cmp::Ordering, sync::Arc};
+use std::{
+    cmp::Ordering,
+    sync::{Arc, Mutex},
+};
 
 use log::{debug, info, warn};
+use pollster::FutureExt;
 use wgpu::rwh::{DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle};
 use winit::{
     application::ApplicationHandler,
-    dpi::PhysicalSize,
+    dpi::{LogicalSize, PhysicalSize},
     event::{DeviceEvent, DeviceId, ElementState, MouseScrollDelta, WindowEvent},
-    event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopBuilder},
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{KeyCode, PhysicalKey},
     window::{CursorGrabMode, Fullscreen, Window, WindowAttributes, WindowId},
 };
@@ -15,22 +19,10 @@ use winit::{
 pub use winit;
 
 use crate::{
+    gui::connect::ConnectParam,
     state::{RenderResult, State},
     RenderTarget,
 };
-
-pub trait AppCallback {
-    fn event_loop_building<T: 'static>(&mut self, _event_loop_builder: &mut EventLoopBuilder<T>) {}
-    fn window_creating(&mut self, param: WindowAttributes) -> WindowAttributes {
-        param.with_inner_size(PhysicalSize::new(720, 480))
-    }
-    fn window_created(&mut self, _window: &Window) {}
-}
-
-#[derive(Default)]
-pub struct NoOpAppcallCallback {}
-
-impl AppCallback for NoOpAppcallCallback {}
 
 struct WindowRenderTarget {
     window: Arc<Window>,
@@ -107,24 +99,16 @@ impl crate::gui::event::GuiEventHandler for WindowEventHandler {
     }
 }
 
-pub struct App<Callback: AppCallback> {
-    state: Option<State<'static, WindowEventHandler>>,
+pub struct App<CP: ConnectParam> {
+    state: Option<State<'static, CP>>,
     render_target: Option<Arc<WindowRenderTarget>>,
     window_size: Option<PhysicalSize<u32>>,
-
-    event_handler: Option<Arc<std::sync::Mutex<WindowEventHandler>>>,
-
-    model_loader: Arc<dyn crate::gui::ModelLoaderGui>,
-    callback: Callback,
+    event_handler: Option<Arc<Mutex<WindowEventHandler>>>,
 }
 
-impl<Callback: AppCallback> App<Callback> {
-    pub fn run(mut callback: Callback, model_loader: Arc<dyn crate::gui::ModelLoaderGui>) {
-        let mut event_loop_builder = EventLoop::with_user_event();
-        callback.event_loop_building(&mut event_loop_builder);
-        let event_loop = event_loop_builder
-            .build()
-            .expect("Failed to create event loop");
+impl<CP: ConnectParam> App<CP> {
+    pub fn run() {
+        let event_loop = EventLoop::new().expect("Failed to create event loop");
 
         event_loop.set_control_flow(ControlFlow::Wait);
 
@@ -133,8 +117,6 @@ impl<Callback: AppCallback> App<Callback> {
             render_target: Default::default(),
             window_size: Default::default(),
             event_handler: None,
-            model_loader,
-            callback,
         };
 
         event_loop
@@ -143,7 +125,7 @@ impl<Callback: AppCallback> App<Callback> {
     }
 }
 
-impl<Callback: AppCallback> App<Callback> {
+impl<CP: ConnectParam> App<CP> {
     fn update_cursor_grab(window: &Window, grab: bool) {
         window.set_cursor_visible(!grab);
         if grab {
@@ -178,8 +160,6 @@ impl<Callback: AppCallback> App<Callback> {
         }
         debug!("Creating state");
 
-        use pollster::FutureExt;
-
         let event_handler = Arc::new(std::sync::Mutex::new(WindowEventHandler::new(
             render_target.window.clone(),
         )));
@@ -187,30 +167,20 @@ impl<Callback: AppCallback> App<Callback> {
 
         let size = render_target.window.inner_size();
         let size = (size.width, size.height);
-        let mut state = State::new(
-            render_target.clone(),
-            size,
-            event_handler,
-            self.model_loader.clone(),
-        )
-        .block_on();
-        state.setup_scene();
+        let state = State::new(render_target.clone(), size, event_handler).block_on();
         self.state = Some(state);
     }
 }
 
-type AppState = (Arc<Window>, State<'static, WindowEventHandler>);
-
-impl<Callback: AppCallback> ApplicationHandler<(Arc<Window>, AppState)> for App<Callback> {
+impl<CP: ConnectParam> ApplicationHandler for App<CP> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         debug!("Resumed");
         let render_target = self.render_target.get_or_insert_with(|| {
-            let param = WindowAttributes::default();
-            let param = self.callback.window_creating(param);
             let window = event_loop
-                .create_window(param)
+                .create_window(
+                    WindowAttributes::default().with_inner_size(LogicalSize::new(720, 480)),
+                )
                 .expect("Failed to create window");
-            self.callback.window_created(&window);
             debug!("Window created, reported size: {:?}", window.inner_size());
             Arc::new(WindowRenderTarget::new(window))
         });
@@ -239,7 +209,7 @@ impl<Callback: AppCallback> ApplicationHandler<(Arc<Window>, AppState)> for App<
     ) {
         let Some(state) = &mut self.state else { return };
 
-        if state.egui_active() {
+        if state.gui_active() {
             return;
         }
 
@@ -291,9 +261,8 @@ impl<Callback: AppCallback> ApplicationHandler<(Arc<Window>, AppState)> for App<
                 }
                 return;
             }
-
             WindowEvent::Focused(focused) => {
-                let should_grab = *focused && !state.egui_active();
+                let should_grab = *focused && !state.gui_active();
                 Self::update_cursor_grab(&render_target.window, should_grab);
                 return;
             }
@@ -331,10 +300,9 @@ impl<Callback: AppCallback> ApplicationHandler<(Arc<Window>, AppState)> for App<
 
                 PhysicalKey::Code(KeyCode::F10) => {
                     if !event.repeat && event.state == ElementState::Released {
-                        let active = !state.egui_active();
-                        state.set_egui_active(active);
+                        state.toggle_gui_active();
 
-                        let should_grab = render_target.window.has_focus() && !state.egui_active();
+                        let should_grab = render_target.window.has_focus() && !state.gui_active();
                         Self::update_cursor_grab(&render_target.window, should_grab);
                     }
                     return;
@@ -344,7 +312,7 @@ impl<Callback: AppCallback> ApplicationHandler<(Arc<Window>, AppState)> for App<
             _ => (),
         }
 
-        if state.egui_active() {
+        if state.gui_active() {
             // Since we always redraw, we can ignore the result
             let Some(event_handler) = self.event_handler.as_ref() else {
                 return;

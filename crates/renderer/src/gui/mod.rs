@@ -1,88 +1,90 @@
-use std::{path::PathBuf, sync::mpsc::Sender};
+use std::sync::mpsc::Sender;
 
-use animation::animation_items;
+use connect::{connect, connecting, ConnectParam, ConnectionStatus};
 use egui::Context;
+use entity::entities;
 use error::error_dialog;
 use glam::Vec3;
-use joystick::joystick;
 use light::light_param;
-pub use load::{ModelLoaderGui, NotSupportedModelLoaderGui};
-use node_tree::node_tree;
 use perf::perf_info;
+use renderer_perf_tracker::PerformanceTracker;
 use web_time::Instant;
 
 use crate::{
-    asset::loader::AssetLoadParams,
-    perf::PerformanceTracker,
+    client::world::Entities,
     renderer::{camera::PositionController, uniform::light::GlobalLightParam, Renderer},
+    transport::TransportParam,
 };
 
-mod animation;
-mod context;
+pub mod connect;
+mod entity;
 mod error;
 pub mod event;
-mod joystick;
 mod light;
-mod load;
-mod matrix;
-mod node_tree;
 mod perf;
 pub(crate) mod state;
 
-#[derive(Default)]
-pub struct GuiState {
+pub struct GuiState<CP: ConnectParam> {
     errors: Vec<String>,
-    asset_load_params: AssetLoadParams,
+    selected_param: usize,
+    connect_params: Vec<CP>,
 }
 
-impl GuiState {
+impl<CP: ConnectParam> Default for GuiState<CP> {
+    fn default() -> Self {
+        Self {
+            errors: Vec::default(),
+            selected_param: 0,
+            connect_params: Vec::default(),
+        }
+    }
+}
+
+impl<CP: ConnectParam> GuiState<CP> {
     pub fn add_error(&mut self, error: String) {
         self.errors.push(error)
     }
-
-    pub fn asset_load_params(&self) -> &AssetLoadParams {
-        &self.asset_load_params
-    }
 }
 
-#[derive(Debug, Clone)]
 pub enum GuiAction {
-    LoadObj(PathBuf),
-    LoadGltf(PathBuf),
-    LoadPmx(PathBuf),
-    LoadGltfData(Option<String>, Vec<u8>),
-    StopAnimation(usize),
-    StartAnimationOnce(usize),
-    StartAnimationRepeat(usize),
-    StartAnimationLoop(usize),
-    EnableCamera(Option<usize>),
     SetLightParam(GlobalLightParam),
     SetBackgroundColor(Vec3),
+    Connect(Box<dyn TransportParam>),
 }
 
 pub struct GuiParam<'a> {
     pub time: &'a Instant,
     pub renderer: &'a Renderer,
-    pub model_loader: &'a dyn ModelLoaderGui,
     pub perf_tracker: &'a PerformanceTracker,
     pub position_controller: &'a mut PositionController,
+    pub connection_status: Option<ConnectionStatus>,
+    pub entities: Option<&'a Entities>,
     pub gui_actions_tx: &'a mut Sender<GuiAction>,
 }
 
-pub fn gui_main(ctx: &Context, param: GuiParam, state: &mut GuiState) {
-    node_tree(ctx, param.renderer, param.gui_actions_tx);
+pub fn gui_main<CP: ConnectParam>(ctx: &Context, param: GuiParam, state: &mut GuiState<CP>) {
     perf_info(ctx, param.perf_tracker);
-    param
-        .model_loader
-        .ui(ctx, &mut state.asset_load_params, param.gui_actions_tx);
-    animation_items(
-        ctx,
-        param.time,
-        param.renderer.animation_groups(),
-        param.gui_actions_tx,
-    );
-    light_param(ctx, &param.renderer.state, param.gui_actions_tx);
-    joystick(ctx, param.position_controller);
+    light_param(ctx, param.renderer, param.gui_actions_tx);
+    if let Some(connection_status) = param.connection_status {
+        match connection_status {
+            ConnectionStatus::Connecting
+            | ConnectionStatus::Handshaking
+            | ConnectionStatus::SyncingWorld { .. } => {
+                connecting(ctx, connection_status);
+            }
+            ConnectionStatus::Connected | ConnectionStatus::Closed => {}
+        }
+    } else {
+        connect(
+            ctx,
+            &mut state.selected_param,
+            &mut state.connect_params,
+            param.gui_actions_tx,
+        );
+    }
+    if let Some(current_entities) = param.entities {
+        entities(ctx, current_entities);
+    }
 
     let mut remove_index = Vec::new();
     for (index, error) in state.errors.iter().enumerate() {

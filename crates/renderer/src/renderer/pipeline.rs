@@ -9,7 +9,7 @@ use wgpu::{
 };
 
 use super::{
-    vertex::{ColorSkinVertex, ColorVertex, TextureSkinVertex, TextureVertex, Vertex},
+    buffer::vertex::{ColorSkinVertex, ColorVertex, TextureSkinVertex, TextureVertex, Vertex},
     RendererBindGroupLayout, DEPTH_TEXTURE_FORMAT,
 };
 

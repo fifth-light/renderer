@@ -1,0 +1,27 @@
+[package]
+name = "renderer-server"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+renderer-perf-tracker.path = "../renderer-perf-tracker"
+renderer-protocol.path = "../renderer-protocol"
+web-time.workspace = true
+env_logger.workspace = true
+glam.workspace = true
+serde.workspace = true
+log.workspace = true
+uuid.workspace = true
+tokio = { workspace = true, features = [
+    "net",
+    "sync",
+    "rt-multi-thread",
+    "macros",
+    "time",
+] }
+futures.workspace = true
+tokio-tungstenite.workspace = true
+tokio-serde.workspace = true
+bytes.workspace = true
+crossbeam.workspace = true
