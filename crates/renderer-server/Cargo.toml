@@ -7,7 +7,6 @@ publish = false
 [dependencies]
 renderer-perf-tracker.path = "../renderer-perf-tracker"
 renderer-protocol.path = "../renderer-protocol"
-web-time.workspace = true
 env_logger.workspace = true
 glam.workspace = true
 serde.workspace = true

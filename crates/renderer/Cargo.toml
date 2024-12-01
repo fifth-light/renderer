@@ -25,7 +25,6 @@ egui-winit = { workspace = true, optional = true }
 binrw.workspace = true
 modular-bitfield.workspace = true
 pollster = { workspace = true, optional = true }
-web-time.workspace = true
 getrandom.workspace = true
 uuid.workspace = true
 serde.workspace = true

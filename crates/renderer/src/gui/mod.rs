@@ -1,4 +1,4 @@
-use std::sync::mpsc::Sender;
+use std::{sync::mpsc::Sender, time::Instant};
 
 use connect::{connect, connecting, ConnectParam, ConnectionStatus};
 use egui::Context;
@@ -8,7 +8,6 @@ use glam::Vec3;
 use light::light_param;
 use perf::perf_info;
 use renderer_perf_tracker::PerformanceTracker;
-use web_time::Instant;
 
 use crate::{
     client::world::Entities,

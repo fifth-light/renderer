@@ -15,12 +15,9 @@ pub use egui_wgpu;
 
 pub use renderer_protocol as protocol;
 
-use wgpu::{
-    rwh::{HasDisplayHandle, HasWindowHandle},
-    WasmNotSendSync,
-};
+use wgpu::rwh::{HasDisplayHandle, HasWindowHandle};
 
-pub trait RenderTarget: HasWindowHandle + HasDisplayHandle + WasmNotSendSync + 'static {
+pub trait RenderTarget: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static {
     fn native_pixels_per_point(&self) -> f32;
     fn pre_present_notify(&self);
     fn request_redraw(&self);

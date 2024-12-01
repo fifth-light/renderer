@@ -1,16 +1,18 @@
-use std::sync::{
-    mpsc::{self, TryRecvError},
-    Arc, Mutex,
+use std::{
+    sync::{
+        mpsc::{self, TryRecvError},
+        Arc, Mutex,
+    },
+    time::Instant,
 };
 
 use egui::FullOutput;
 use egui_wgpu::Renderer as EguiRenderer;
 use renderer_perf_tracker::PerformanceTracker;
-use web_time::Instant;
 use wgpu::{Device, SurfaceConfiguration};
 
 use crate::{
-    client::{world::World, Client},
+    client::Client,
     renderer::{camera::PositionController, Renderer, DEPTH_TEXTURE_FORMAT},
 };
 

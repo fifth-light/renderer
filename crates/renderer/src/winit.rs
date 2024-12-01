@@ -1,4 +1,3 @@
-#![cfg(not(target_family = "wasm"))]
 use std::{
     cmp::Ordering,
     sync::{Arc, Mutex},

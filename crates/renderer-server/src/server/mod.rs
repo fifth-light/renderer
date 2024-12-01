@@ -3,7 +3,7 @@ use std::{
     error::Error,
     fmt::{self, Debug, Display, Formatter},
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use connection::{Connection, ConnectionError};
@@ -19,7 +19,6 @@ use tokio::{
     time::sleep,
 };
 use uuid::Uuid;
-use web_time::Instant;
 
 use crate::world::World;
 

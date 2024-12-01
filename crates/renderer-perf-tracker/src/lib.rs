@@ -1,5 +1,7 @@
-use std::{collections::VecDeque, time::Duration};
-use web_time::Instant;
+use std::{
+    collections::VecDeque,
+    time::{Duration, Instant},
+};
 
 #[derive(Debug)]
 pub struct PerformanceTracker {

@@ -1,3 +1,8 @@
+use std::{
+    sync::{Arc, Mutex},
+    time::Instant,
+};
+
 use crate::{
     client::Client,
     gui::{
@@ -13,11 +18,10 @@ use crate::{
     },
     RenderTarget,
 };
+
 use image::GrayImage;
 use log::warn;
 use renderer_perf_tracker::PerformanceTracker;
-use std::sync::{Arc, Mutex};
-use web_time::Instant;
 use wgpu::{
     util::{backend_bits_from_env, initialize_adapter_from_env, power_preference_from_env},
     Adapter, Backends, Device, DeviceDescriptor, Instance, InstanceDescriptor, Limits,
@@ -62,29 +66,23 @@ impl<'a, CP: ConnectParam> State<'a, CP> {
         adapter: &Adapter,
         size: (u32, u32),
     ) -> SurfaceConfiguration {
-        if cfg!(target_family = "wasm") {
-            surface
-                .get_default_config(adapter, size.0, size.1)
-                .expect("The surface is not supported by adapter")
-        } else {
-            let surface_caps = surface.get_capabilities(adapter);
-            let surface_format = surface_caps
-                .formats
-                .iter()
-                .copied()
-                .find(|f| f.is_srgb())
-                .or_else(|| surface_caps.formats.first().copied())
-                .unwrap_or(TextureFormat::Bgra8UnormSrgb);
-            SurfaceConfiguration {
-                usage: TextureUsages::RENDER_ATTACHMENT,
-                format: surface_format,
-                width: size.0,
-                height: size.1,
-                present_mode: PresentMode::AutoVsync,
-                alpha_mode: surface_caps.alpha_modes[0],
-                desired_maximum_frame_latency: 2,
-                view_formats: vec![],
-            }
+        let surface_caps = surface.get_capabilities(adapter);
+        let surface_format = surface_caps
+            .formats
+            .iter()
+            .copied()
+            .find(|f| f.is_srgb())
+            .or_else(|| surface_caps.formats.first().copied())
+            .unwrap_or(TextureFormat::Bgra8UnormSrgb);
+        SurfaceConfiguration {
+            usage: TextureUsages::RENDER_ATTACHMENT,
+            format: surface_format,
+            width: size.0,
+            height: size.1,
+            present_mode: PresentMode::AutoVsync,
+            alpha_mode: surface_caps.alpha_modes[0],
+            desired_maximum_frame_latency: 2,
+            view_formats: vec![],
         }
     }
 
@@ -93,11 +91,7 @@ impl<'a, CP: ConnectParam> State<'a, CP> {
         size: (u32, u32),
         event_handler: Arc<Mutex<dyn GuiEventHandler>>,
     ) -> Self {
-        let backends = if cfg!(target_family = "wasm") {
-            Backends::GL | Backends::BROWSER_WEBGPU
-        } else {
-            backend_bits_from_env().unwrap_or(Backends::all())
-        };
+        let backends = backend_bits_from_env().unwrap_or(Backends::all());
         let instance = Instance::new(InstanceDescriptor {
             backends,
             ..Default::default()
@@ -117,12 +111,9 @@ impl<'a, CP: ConnectParam> State<'a, CP> {
                 .await
                 .expect("Failed to acquire a graphic adapter"),
         };
-        let limits = if cfg!(target_family = "wasm") {
-            Limits::downlevel_webgl2_defaults()
-        } else {
-            Limits::default()
-        }
-        .using_resolution(adapter.limits());
+        let limits = Limits::downlevel_defaults()
+            .using_resolution(adapter.limits())
+            .using_alignment(adapter.limits());
         let (device, queue) = adapter
             .request_device(
                 &DeviceDescriptor {
