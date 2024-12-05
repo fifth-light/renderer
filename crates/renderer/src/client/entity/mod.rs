@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 use crate::renderer::OngoingRenderState;
 
+pub mod object;
 pub mod player;
-pub mod test;
 
 pub trait Output: Serialize + for<'a> Deserialize<'a> + Debug + Clone + Send + Sync {}
 

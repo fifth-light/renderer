@@ -5,6 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
+renderer-asset = { path = "../renderer-asset", features = ["serde"] }
 glam.workspace = true
 serde.workspace = true
 uuid.workspace = true

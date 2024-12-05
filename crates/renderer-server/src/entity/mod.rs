@@ -5,8 +5,8 @@ use renderer_protocol::entity::BaseEntityData;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+pub mod object;
 pub mod player;
-pub mod test;
 
 pub trait Message: Serialize + for<'a> Deserialize<'a> + Debug + Clone + Send + Sync {}
 

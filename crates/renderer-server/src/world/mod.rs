@@ -5,10 +5,14 @@ use std::{
 };
 
 use log::warn;
-use renderer_protocol::{entity::EntityStates, input::PlayerEntityInput, tick::TickOutput};
+use renderer_protocol::{
+    entity::{BaseEntityData, EntityResourceData, EntityStates, ObjectEntityState},
+    input::PlayerEntityInput,
+    tick::TickOutput,
+};
 use uuid::Uuid;
 
-use crate::entity::{player::PlayerEntity, test::TestEntity, Entity};
+use crate::entity::{object::ObjectEntity, player::PlayerEntity, Entity};
 
 #[derive(Debug)]
 pub struct EntityAlreadyExists;
@@ -27,14 +31,16 @@ pub struct EntityItem<E: Entity> {
     messages: VecDeque<E::Message>,
 }
 
-impl<E: Entity> EntityItem<E> {
-    fn new(entity: E) -> Self {
+impl<E: Entity> From<E> for EntityItem<E> {
+    fn from(entity: E) -> Self {
         Self {
             entity,
             messages: VecDeque::new(),
         }
     }
+}
 
+impl<E: Entity> EntityItem<E> {
     #[must_use]
     fn process_messages(&mut self, output: &mut Vec<(Uuid, E::Output)>) -> bool {
         let mut has_message = false;
@@ -75,6 +81,18 @@ impl<E: Entity> Default for EntityItems<E> {
     }
 }
 
+impl<E: Entity> FromIterator<E> for EntityItems<E> {
+    fn from_iter<T: IntoIterator<Item = E>>(iter: T) -> Self {
+        Self {
+            items: iter
+                .into_iter()
+                .map(|entity| (entity.id(), entity.into()))
+                .collect(),
+            pending_removed: HashSet::new(),
+        }
+    }
+}
+
 impl<E: Entity> EntityItems<E> {
     fn clone_state(&self) -> Vec<E::State> {
         self.items.values().map(EntityItem::clone_state).collect()
@@ -101,7 +119,7 @@ impl<E: Entity> EntityItems<E> {
         match self.items.entry(entity.id()) {
             Entry::Occupied(_) => Err(EntityAlreadyExists),
             Entry::Vacant(entry) => {
-                let item = EntityItem::new(entity);
+                let item: EntityItem<E> = entity.into();
                 let state = item.clone_state();
                 entry.insert(item);
                 Ok(state)
@@ -133,14 +151,14 @@ impl EntityItems<PlayerEntity> {
 
 #[derive(Debug, Default)]
 pub struct Entities {
-    test: EntityItems<TestEntity>,
+    object: EntityItems<ObjectEntity>,
     player: EntityItems<PlayerEntity>,
 }
 
 impl Entities {
     pub fn state(&self) -> EntityStates {
         EntityStates {
-            test: self.test.clone_state(),
+            object: self.object.clone_state(),
             player: self.player.clone_state(),
         }
     }
@@ -164,8 +182,8 @@ impl Entities {
     }
 
     pub fn clear_removed_entities(&mut self, output: &mut TickOutput) {
-        self.test
-            .clear_removed(&mut output.removed_entity_uuids.test);
+        self.object
+            .clear_removed(&mut output.removed_entity_uuids.object);
         self.player
             .clear_removed(&mut output.removed_entity_uuids.player);
     }
@@ -174,7 +192,9 @@ impl Entities {
         loop {
             let mut has_message = false;
 
-            has_message |= self.test.process_messages(&mut output.entity_outputs.test);
+            has_message |= self
+                .object
+                .process_messages(&mut output.entity_outputs.object);
             has_message |= self
                 .player
                 .process_messages(&mut output.entity_outputs.player);
@@ -186,10 +206,30 @@ impl Entities {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct World {
     pub entities: Entities,
     pub tick_output: TickOutput,
+}
+
+impl Default for World {
+    fn default() -> Self {
+        Self {
+            entities: Entities {
+                object: [ObjectEntity::from(ObjectEntityState {
+                    base: BaseEntityData {
+                        id: Uuid::nil(),
+                        position: [0.0, 0.0, 0.0].into(),
+                    },
+                    resource: EntityResourceData::Crosshair,
+                })]
+                .into_iter()
+                .collect(),
+                player: EntityItems::default(),
+            },
+            tick_output: TickOutput::default(),
+        }
+    }
 }
 
 impl World {

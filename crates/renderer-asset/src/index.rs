@@ -1,6 +1,7 @@
 use std::fmt::{self, Display, Formatter, LowerHex, UpperHex};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BundleIndex(pub [u8; 32]);
 
 impl LowerHex for BundleIndex {

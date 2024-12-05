@@ -5,6 +5,7 @@ edition = "2021"
 publish = false
 
 [features]
+full = ["obj", "gltf", "pmx", "zip", "tar", "xp3", "digest", "serde"]
 obj = ["tobj"]
 gltf = ["dep:gltf", "base64"]
 pmx = ["binrw", "modular-bitfield"]
@@ -12,6 +13,7 @@ zip = ["dep:zip"]
 tar = ["dep:tar"]
 xp3 = ["dep:xp3"]
 digest = ["sha2"]
+serde = ["dep:serde"]
 
 [dependencies]
 glam.workspace = true
@@ -25,3 +27,4 @@ zip = { workspace = true, optional = true }
 tar = { workspace = true, optional = true }
 xp3 = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }

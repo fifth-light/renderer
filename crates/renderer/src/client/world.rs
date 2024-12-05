@@ -10,12 +10,12 @@ use uuid::Uuid;
 
 use crate::renderer::OngoingRenderState;
 
-use super::entity::{player::PlayerEntity, test::TestEntity, Entity};
+use super::entity::{object::ObjectEntity, player::PlayerEntity, Entity, State};
 
 #[derive(Debug)]
 pub struct Entities {
     pub player: HashMap<Uuid, PlayerEntity>,
-    pub test: HashMap<Uuid, TestEntity>,
+    pub object: HashMap<Uuid, ObjectEntity>,
 }
 
 impl From<EntityStates> for Entities {
@@ -25,13 +25,13 @@ impl From<EntityStates> for Entities {
                 states
                     .$entity
                     .into_iter()
-                    .map(|entity| (entity.id, <$type>::from(entity)))
+                    .map(|state| (state.id(), <$type>::from(state)))
                     .collect()
             };
         }
         Self {
             player: create_entities!(PlayerEntity, player),
-            test: create_entities!(TestEntity, test),
+            object: create_entities!(ObjectEntity, object),
         }
     }
 }
@@ -44,7 +44,7 @@ impl Entities {
                     .for_each(|entity| entity.render($render_state));
             };
         }
-        render!(self.test, render_state);
+        render!(self.object, render_state);
         render!(self.player, render_state);
     }
 
@@ -58,7 +58,7 @@ impl Entities {
                 });
             };
         }
-        remove!(test, "test");
+        remove!(object, "object");
         remove!(player, "player");
     }
 
@@ -79,7 +79,7 @@ impl Entities {
                     });
             };
         }
-        add!(test, TestEntity);
+        add!(object, ObjectEntity);
         add!(player, PlayerEntity);
     }
 
@@ -95,8 +95,8 @@ impl Entities {
                     });
             };
         }
-        process!(test, "Test");
-        process!(player, "Player");
+        process!(object, "object");
+        process!(player, "player");
     }
 }
 

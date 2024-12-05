@@ -2770,6 +2770,7 @@ dependencies = [
  "gltf",
  "image",
  "modular-bitfield",
+ "serde",
  "sha2",
  "tar",
  "tobj",
@@ -2794,6 +2795,7 @@ name = "renderer-protocol"
 version = "0.1.0"
 dependencies = [
  "glam",
+ "renderer-asset",
  "serde",
  "uuid",
 ]
