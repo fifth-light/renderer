@@ -312,7 +312,7 @@ pub struct PmxMaterial {
     pub specular_strength: f32,
     pub ambient_color: [f32; 3],
     pub drawing_flags: PmxDrawingFlags,
-    pub edge_colour: [f32; 4],
+    pub edge_color: [f32; 4],
     pub edge_scale: f32,
     #[br(args(header.globals.texture_index_type))]
     pub texture_index: PmxIndex,

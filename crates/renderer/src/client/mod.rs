@@ -16,10 +16,7 @@ use crate::{
         connect::{ConnectParam, ConnectionStatus},
         GuiState,
     },
-    renderer::{
-        camera::{Camera, PositionController},
-        Renderer,
-    },
+    renderer::Renderer,
     transport::{Transport, TransportState},
 };
 

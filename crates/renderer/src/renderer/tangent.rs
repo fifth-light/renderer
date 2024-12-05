@@ -1,8 +1,7 @@
 use std::{cmp::Ordering, collections::BTreeMap, ops::Deref};
 
 use glam::Vec3;
-
-use crate::asset::{normal::calculate_normal, primitive::PrimitiveAssetMode};
+use renderer_asset::{primitive::PrimitiveAssetMode, tangent::calculate_tangent};
 
 struct PositionFloat {
     value: f32,
@@ -63,7 +62,7 @@ pub fn _calculate_tangent(
     positions: &[[f32; 3]],
     indices: Option<&[u32]>,
 ) -> Vec<[f32; 3]> {
-    let normals = calculate_normal(mode, positions, indices);
+    let normals = calculate_tangent(mode, positions, indices);
     let mut points = BTreeMap::new();
     for (index, position) in positions.iter().enumerate() {
         let normal = Vec3::from_array(normals[index]);

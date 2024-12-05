@@ -7,6 +7,7 @@ members = [
     "crates/renderer-server",
     "crates/renderer-perf-tracker",
     "crates/renderer-protocol",
+    "crates/renderer-asset",
 ]
 
 [workspace.dependencies]
@@ -40,10 +41,19 @@ gltf = { version = "1", features = [
     "KHR_materials_emissive_strength",
     "extensions",
 ] }
+base64 = "0.22"
 
 # PMX
 binrw = "0.14"
 modular-bitfield = "0.11"
+
+# Archive
+zip = "2"
+xp3 = "0.3"
+tar = "0.4"
+
+# Digest
+sha2 = "0.10"
 
 # GUI
 egui = "0.29"

@@ -2,7 +2,7 @@ use glam::Vec3;
 
 use super::primitive::PrimitiveAssetMode;
 
-fn calculate_triangle_normal(positions: &[&[f32; 3]; 3]) -> Vec3 {
+fn calculate_triangle_tangent(positions: &[&[f32; 3]; 3]) -> Vec3 {
     let pnt_0 = Vec3::from_array(*positions[0]);
     let pnt_1 = Vec3::from_array(*positions[1]);
     let pnt_2 = Vec3::from_array(*positions[2]);
@@ -11,14 +11,15 @@ fn calculate_triangle_normal(positions: &[&[f32; 3]; 3]) -> Vec3 {
     vec_a.cross(vec_b).normalize()
 }
 
-pub fn calculate_normal(
+// TODO: replace with mikktspace
+pub fn calculate_tangent(
     mode: PrimitiveAssetMode,
     positions: &[[f32; 3]],
     indices: Option<&[u32]>,
 ) -> Vec<[f32; 3]> {
     let mut buffer = vec![Vec3::ZERO; positions.len()];
     match mode {
-        // Points and lines don't have a normal for now
+        // Points and lines don't have normals
         PrimitiveAssetMode::Points
         | PrimitiveAssetMode::LineStrip
         | PrimitiveAssetMode::LineList => {}
@@ -33,7 +34,7 @@ pub fn calculate_normal(
                     let positions: Vec<&[f32; 3]> =
                         indices.iter().map(|index| &positions[*index]).collect();
                     let positions: [&[f32; 3]; 3] = positions.try_into().unwrap();
-                    let normal = calculate_triangle_normal(&positions);
+                    let normal = calculate_triangle_tangent(&positions);
                     indices.iter().for_each(|index| buffer[*index] += normal);
                 });
             } else {
@@ -44,7 +45,7 @@ pub fn calculate_normal(
                     let positions: Vec<&[f32; 3]> =
                         indices.iter().map(|index| &positions[*index]).collect();
                     let positions: [&[f32; 3]; 3] = positions.try_into().unwrap();
-                    let normal = calculate_triangle_normal(&positions);
+                    let normal = calculate_triangle_tangent(&positions);
                     indices.iter().for_each(|index| buffer[*index] += normal);
                 });
             }

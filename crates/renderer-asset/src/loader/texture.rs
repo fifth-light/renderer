@@ -2,22 +2,26 @@ use std::{
     collections::HashMap,
     error::Error,
     fmt::{self, Display, Formatter},
-    io::{self, BufRead, Seek},
+    io::Cursor,
     path::Path,
     sync::Arc,
 };
 
 use image::{DynamicImage, GenericImageView, ImageError, ImageReader};
 
-use crate::asset::texture::{SamplerAsset, TextureAsset, TextureAssetFormat, TextureAssetId};
+use crate::{
+    archive::{Archive, Entry},
+    index::AssetIndex,
+    texture::{SamplerAsset, TextureAsset, TextureAssetFormat},
+};
 
 #[derive(Debug)]
-pub enum TextureLoadError {
-    Io(io::Error),
+pub enum TextureLoadError<E> {
+    Io(E),
     Image(ImageError),
 }
 
-impl Display for TextureLoadError {
+impl<E: Display> Display for TextureLoadError<E> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             TextureLoadError::Io(err) => Display::fmt(&err, f),
@@ -26,15 +30,9 @@ impl Display for TextureLoadError {
     }
 }
 
-impl Error for TextureLoadError {}
+impl<E: Error> Error for TextureLoadError<E> {}
 
-impl From<io::Error> for TextureLoadError {
-    fn from(value: io::Error) -> Self {
-        TextureLoadError::Io(value)
-    }
-}
-
-impl From<ImageError> for TextureLoadError {
+impl<E> From<ImageError> for TextureLoadError<E> {
     fn from(value: ImageError) -> Self {
         TextureLoadError::Image(value)
     }
@@ -42,13 +40,13 @@ impl From<ImageError> for TextureLoadError {
 
 #[derive(Default)]
 pub struct TextureLoader {
-    texture_cache: HashMap<TextureAssetId, Arc<TextureAsset>>,
+    texture_cache: HashMap<AssetIndex, Arc<TextureAsset>>,
 }
 
 impl TextureLoader {
     pub fn load_image(
         &mut self,
-        id: TextureAssetId,
+        id: AssetIndex,
         image: DynamicImage,
         sampler: SamplerAsset,
     ) -> Arc<TextureAsset> {
@@ -123,42 +121,36 @@ impl TextureLoader {
         })
     }
 
-    pub fn load_by_id(&self, id: &TextureAssetId) -> Option<Arc<TextureAsset>> {
-        self.texture_cache.get(id).cloned()
-    }
-
-    pub fn load_from_buffer<R: BufRead + Seek>(
+    fn load_from_buffer_uncached(
         &mut self,
-        id: TextureAssetId,
-        reader: R,
+        id: AssetIndex,
+        buffer: &[u8],
         sampler: SamplerAsset,
     ) -> Result<Arc<TextureAsset>, ImageError> {
-        if let Some(texture) = self.texture_cache.get(&id) {
-            return Ok(texture.clone());
-        }
-
-        let reader = ImageReader::new(reader);
+        let reader = ImageReader::new(Cursor::new(buffer));
         let image = reader.with_guessed_format()?.decode()?;
-        let texture = self.load_image(id.clone(), image, sampler);
-
-        self.texture_cache.insert(id, texture.clone());
+        let texture = self.load_image(id, image, sampler);
         Ok(texture)
     }
 
-    pub fn load_from_path(
+    pub fn load_from_archive<T, A: Archive<T>, P: AsRef<Path>>(
         &mut self,
-        id: TextureAssetId,
-        path: &Path,
+        id: AssetIndex,
+        archive: &mut A,
+        path: P,
         sampler: SamplerAsset,
-    ) -> Result<Arc<TextureAsset>, TextureLoadError> {
+    ) -> Result<Option<Arc<TextureAsset>>, TextureLoadError<A::Error>> {
         if let Some(texture) = self.texture_cache.get(&id) {
-            return Ok(texture.clone());
+            return Ok(Some(texture.clone()));
         }
-        let reader = ImageReader::open(path)?;
-        let image = reader.with_guessed_format()?.decode()?;
-        let texture = self.load_image(id.clone(), image, sampler);
+
+        let Some(mut buffer) = archive.by_path(path).map_err(TextureLoadError::Io)? else {
+            return Ok(None);
+        };
+        let buffer = buffer.unpack().map_err(TextureLoadError::Io)?;
+        let texture = self.load_from_buffer_uncached(id.clone(), &buffer, sampler)?;
 
         self.texture_cache.insert(id, texture.clone());
-        Ok(texture)
+        Ok(Some(texture))
     }
 }

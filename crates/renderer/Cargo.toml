@@ -11,6 +11,7 @@ tokio-transport = ["tokio", "tokio-tungstenite", "tokio-serde", "futures"]
 [dependencies]
 renderer-perf-tracker.path = "../renderer-perf-tracker"
 renderer-protocol.path = "../renderer-protocol"
+renderer-asset.path = "../renderer-asset"
 bytemuck.workspace = true
 glam.workspace = true
 gltf.workspace = true

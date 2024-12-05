@@ -1,6 +1,8 @@
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 
 use glam::{Mat4, Quat, Vec3};
+
+use crate::index::AssetIndex;
 
 use super::{camera::CameraAsset, mesh::MeshAsset, skin::SkinAsset};
 
@@ -84,47 +86,14 @@ impl From<NodeTransform> for DecomposedTransform {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum NodeAssetId {
-    PathIndex(PathBuf, usize),
-    NameIndex(String, usize),
-    RandomIndex(u64, usize),
-    String(String),
-    Path(PathBuf),
-}
-
-impl From<(PathBuf, usize)> for NodeAssetId {
-    fn from(value: (PathBuf, usize)) -> Self {
-        Self::PathIndex(value.0, value.1)
-    }
-}
-
-impl From<(String, usize)> for NodeAssetId {
-    fn from(value: (String, usize)) -> Self {
-        Self::NameIndex(value.0, value.1)
-    }
-}
-
-impl From<String> for NodeAssetId {
-    fn from(value: String) -> Self {
-        Self::String(value)
-    }
-}
-
-impl From<PathBuf> for NodeAssetId {
-    fn from(value: PathBuf) -> Self {
-        Self::Path(value)
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct NodeAsset {
-    pub id: NodeAssetId,
+    pub id: AssetIndex,
     pub name: Option<String>,
+    pub camera: Option<CameraAsset>,
+    pub children: Vec<NodeAsset>,
+    pub skin: Option<Arc<SkinAsset>>,
     pub transform: Option<NodeTransform>,
     pub mesh: Option<MeshAsset>,
-    pub skin: Option<Arc<SkinAsset>>,
-    pub camera: Option<CameraAsset>,
-    pub has_animation: bool,
-    pub children: Vec<NodeAsset>,
+    pub weights: Vec<f32>,
 }

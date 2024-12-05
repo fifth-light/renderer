@@ -8,7 +8,7 @@ use wgpu::{
     TextureUsages, TextureView, TextureViewDescriptor,
 };
 
-use crate::asset::texture::{
+use renderer_asset::texture::{
     TextureAsset, TextureAssetFormat, TextureMagFilter, TextureMinFilter, TextureMipmapFilter,
     TextureWrappingMode,
 };

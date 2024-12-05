@@ -3,7 +3,7 @@ use std::{
     ops::{Add, Mul},
 };
 
-use super::node::NodeAssetId;
+use crate::index::AssetIndex;
 
 #[derive(Debug, Clone)]
 pub struct AnimationKeyFrame<T: Debug + Clone> {
@@ -30,7 +30,7 @@ pub enum AnimationSampler {
 pub struct AnimationChannelAsset {
     pub sampler: AnimationSampler,
     pub length: f32,
-    pub target_id: NodeAssetId,
+    pub target_id: AssetIndex,
 }
 
 #[derive(Debug, Clone)]

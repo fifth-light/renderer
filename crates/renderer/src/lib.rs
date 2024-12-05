@@ -1,6 +1,3 @@
-//#![allow(unused)]
-
-mod asset;
 mod client;
 pub mod gui;
 pub mod renderer;
