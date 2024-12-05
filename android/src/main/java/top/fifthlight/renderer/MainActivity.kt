@@ -4,25 +4,23 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.view.MotionEvent
 import android.view.View
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsAnimationCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.lifecycle.lifecycleScope
 import com.google.androidgamesdk.GameActivity
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class MainActivity: GameActivity() {
     init {
         System.loadLibrary("renderer_android")
     }
 
-    companion object {
-        private val REQUEST_CODE_OPEN_FILE = 1
-    }
+    @JvmField
+    var imeInsets = Insets.NONE
 
     val contentView: View
         get() {
@@ -36,6 +34,19 @@ class MainActivity: GameActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             hide(WindowInsetsCompat.Type.systemBars())
         }
+
+        ViewCompat.setWindowInsetsAnimationCallback(
+            this.contentView,
+            object : WindowInsetsAnimationCompat.Callback(DISPATCH_MODE_STOP) {
+                override fun onProgress(
+                    insets: WindowInsetsCompat,
+                    runningAnimations: List<WindowInsetsAnimationCompat?>
+                ): WindowInsetsCompat {
+                    imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
+                    return insets
+                }
+            }
+        )
     }
 
     @Suppress("unused")

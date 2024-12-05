@@ -23,6 +23,7 @@ use renderer::{
 };
 
 mod gui;
+mod keycodes;
 
 struct AndroidRenderTarget {
     android_app: AndroidApp,
@@ -98,48 +99,46 @@ fn handle_event(
     event_handler: Option<&Arc<Mutex<gui::AndroidEventHandler>>>,
 ) -> InputStatus {
     match event {
-        InputEvent::MotionEvent(motion_event) => {
+        InputEvent::MotionEvent(event) => {
             if state.gui_active() {
-                {
-                    let Some(event_handler) = event_handler else {
-                        return InputStatus::Handled;
-                    };
-                    let mut handler = event_handler.lock().unwrap();
-                    handler.on_motion_event(motion_event);
-                }
+                let Some(event_handler) = event_handler else {
+                    return InputStatus::Handled;
+                };
+                let mut handler = event_handler.lock().unwrap();
+                handler.on_motion_event(event);
             } else {
-                match motion_event.action() {
+                match event.action() {
                     MotionAction::Down => {
-                        for pointer in motion_event.pointers() {
+                        for pointer in event.pointers() {
                             pointer_state
                                 .last_press_position
                                 .insert(pointer.pointer_id(), (pointer.x(), pointer.y()));
                         }
                     }
                     MotionAction::Up => {
-                        for pointer in motion_event.pointers() {
+                        for pointer in event.pointers() {
                             pointer_state
                                 .last_press_position
                                 .remove(&pointer.pointer_id());
                         }
                     }
-                    MotionAction::Move => match motion_event.source() {
+                    MotionAction::Move => match event.source() {
                         Source::MouseRelative => {
-                            for pointer in motion_event.pointers() {
+                            for pointer in event.pointers() {
                                 let x = pointer.x();
                                 let y = pointer.y();
                                 state.update_rotation((x, y));
                             }
                         }
                         Source::Touchpad => {
-                            for pointer in motion_event.pointers() {
+                            for pointer in event.pointers() {
                                 let x = pointer.axis_value(Axis::RelativeX);
                                 let y = pointer.axis_value(Axis::RelativeY);
                                 state.update_rotation((x, y));
                             }
                         }
                         _ => {
-                            for pointer in motion_event.pointers() {
+                            for pointer in event.pointers() {
                                 let x = pointer.x();
                                 let y = pointer.y();
 
@@ -158,7 +157,7 @@ fn handle_event(
                         }
                     },
                     MotionAction::HoverMove => {
-                        for pointer in motion_event.pointers() {
+                        for pointer in event.pointers() {
                             let x = pointer.x();
                             let y = pointer.y();
 
@@ -176,21 +175,21 @@ fn handle_event(
                         }
                     }
                     MotionAction::HoverEnter => {
-                        for pointer in motion_event.pointers() {
+                        for pointer in event.pointers() {
                             pointer_state
                                 .last_hover_position
                                 .insert(pointer.pointer_id(), (pointer.x(), pointer.y()));
                         }
                     }
                     MotionAction::HoverExit => {
-                        for pointer in motion_event.pointers() {
+                        for pointer in event.pointers() {
                             pointer_state
                                 .last_hover_position
                                 .remove(&pointer.pointer_id());
                         }
                     }
                     MotionAction::Scroll => {
-                        for pointer in motion_event.pointers() {
+                        for pointer in event.pointers() {
                             let offset = pointer.axis_value(Axis::Vscroll);
                             if offset > 0.0 {
                                 state.update_fov(true);
@@ -204,9 +203,9 @@ fn handle_event(
             }
             InputStatus::Handled
         }
-        InputEvent::KeyEvent(key_event) => {
-            if let KeyAction::Down = key_event.action() {
-                if let Keycode::F10 = key_event.key_code() {
+        InputEvent::KeyEvent(event) => {
+            if let KeyAction::Down = event.action() {
+                if let Keycode::F10 = event.key_code() {
                     state.toggle_gui_active();
 
                     let Some(event_handler) = event_handler else {
@@ -219,16 +218,14 @@ fn handle_event(
                 }
             }
             if state.gui_active() {
-                {
-                    let Some(event_handler) = event_handler else {
-                        return InputStatus::Handled;
-                    };
-                    let mut handler = event_handler.lock().unwrap();
-                    handler.on_key_event(key_event);
-                }
+                let Some(event_handler) = event_handler else {
+                    return InputStatus::Handled;
+                };
+                let mut handler = event_handler.lock().unwrap();
+                handler.on_key_event(event)
             } else {
-                match key_event.action() {
-                    KeyAction::Down => match key_event.key_code() {
+                match event.action() {
+                    KeyAction::Down => match event.key_code() {
                         Keycode::W => {
                             state.position_controller.forward = 1.0;
                         }
@@ -247,9 +244,9 @@ fn handle_event(
                         Keycode::Space => {
                             state.position_controller.up = 1.0;
                         }
-                        _ => {}
+                        _ => return InputStatus::Unhandled,
                     },
-                    KeyAction::Up => match key_event.key_code() {
+                    KeyAction::Up => match event.key_code() {
                         Keycode::W => {
                             state.position_controller.forward = 0.0;
                         }
@@ -268,16 +265,19 @@ fn handle_event(
                         Keycode::Space => {
                             state.position_controller.up = 0.0;
                         }
-                        _ => {}
+                        _ => return InputStatus::Unhandled,
                     },
-                    _ => (),
+                    _ => return InputStatus::Unhandled,
                 }
+                InputStatus::Handled
             }
-            InputStatus::Handled
         }
-        InputEvent::TextEvent(_text_input_state) => {
-            // TODO
-            InputStatus::Handled
+        InputEvent::TextEvent(event) => {
+            let Some(event_handler) = event_handler else {
+                return InputStatus::Handled;
+            };
+            let mut handler = event_handler.lock().unwrap();
+            handler.on_text_event(event)
         }
         _ => InputStatus::Unhandled,
     }
@@ -315,29 +315,7 @@ fn android_main(app: AndroidApp) {
                 PollEvent::Wake => {}
                 PollEvent::Timeout => {}
                 PollEvent::Main(main_event) => match main_event {
-                    MainEvent::InputAvailable => {
-                        match app.input_events_iter() {
-                            Ok(mut events_iter) => loop {
-                                let handled = events_iter.next(|event| {
-                                    let Some(state) = state.as_mut() else {
-                                        return InputStatus::Handled;
-                                    };
-                                    handle_event(
-                                        state,
-                                        &mut pointer_state,
-                                        event,
-                                        event_handler.as_ref(),
-                                    )
-                                });
-                                if !handled {
-                                    break;
-                                }
-                            },
-                            Err(err) => {
-                                warn!("Failed to get input events iterator: {:?}", err);
-                            }
-                        };
-                    }
+                    MainEvent::InputAvailable => {}
                     MainEvent::InitWindow { .. } => {
                         info!("Init window");
 
@@ -362,7 +340,7 @@ fn android_main(app: AndroidApp) {
 
                         let event_handler = if let Some(event_handler) = event_handler.as_mut() {
                             let mut handler = event_handler.lock().unwrap();
-                            handler.update_config(&app, &new_render_target);
+                            handler.update_config(&new_render_target);
                             event_handler.clone()
                         } else {
                             let new_event_handler = Arc::new(Mutex::new(
@@ -423,7 +401,7 @@ fn android_main(app: AndroidApp) {
                         if let Some(event_handler) = event_handler.as_mut() {
                             let mut handler = event_handler.lock().unwrap();
                             info!("Update config");
-                            handler.update_config(&app, render_target);
+                            handler.update_config(render_target);
                         }
                     }
                     MainEvent::LowMemory => {}
@@ -445,10 +423,35 @@ fn android_main(app: AndroidApp) {
                     }
                     MainEvent::Stop => {}
                     MainEvent::Destroy => running = false,
-                    MainEvent::InsetsChanged { .. } => {}
+                    MainEvent::InsetsChanged { .. } => {
+                        let Some(event_handler) = event_handler.as_ref() else {
+                            return;
+                        };
+                        let mut handler = event_handler.lock().unwrap();
+                        handler.on_inset_changed()
+                    }
                     _ => {}
                 },
                 _ => (),
+            };
+            match app.input_events_iter() {
+                Ok(mut events_iter) => loop {
+                    let state = state.as_mut();
+                    let read_input = events_iter.next(|event| {
+                        if let Some(state) = state {
+                            handle_event(state, &mut pointer_state, event, event_handler.as_ref())
+                        } else {
+                            InputStatus::Unhandled
+                        }
+                    });
+
+                    if !read_input {
+                        break;
+                    }
+                },
+                Err(err) => {
+                    warn!("Failed to get input events iterator: {:?}", err);
+                }
             };
 
             let Some(state) = state.as_mut() else {

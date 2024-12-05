@@ -1,6 +1,8 @@
+use std::cmp::Ordering;
+
 use android_activity::{
-    input::{Axis, KeyEvent, MotionAction, MotionEvent},
-    AndroidApp,
+    input::{Axis, KeyAction, KeyEvent, MotionAction, MotionEvent, TextInputState, TextSpan},
+    AndroidApp, InputStatus,
 };
 use jni::{
     objects::{JObject, JValue},
@@ -10,13 +12,17 @@ use log::info;
 use ndk::configuration::UiModeNight;
 use renderer::{
     egui::{
-        Context as EguiContext, Event, Modifiers, MouseWheelUnit, PlatformOutput, PointerButton,
-        Pos2, RawInput, Rect, Theme, TouchDeviceId, TouchId, TouchPhase, Vec2,
+        Context as EguiContext, Event, Key, Modifiers, MouseWheelUnit, PlatformOutput,
+        PointerButton, Pos2, RawInput, Rect, Theme, TouchDeviceId, TouchId, TouchPhase, Vec2,
     },
     gui::event::GuiEventHandler,
 };
 
-use crate::{app_density, AndroidRenderTarget};
+use crate::{
+    app_density,
+    keycodes::{keycode_to_key, keycode_to_text},
+    AndroidRenderTarget,
+};
 
 trait AndroidAppExt {
     fn activity_object(&self) -> JObject<'_>;
@@ -33,11 +39,21 @@ impl AndroidAppExt for AndroidApp {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+struct Insets {
+    top: u32,
+    bottom: u32,
+    left: u32,
+    right: u32,
+}
+
 pub struct AndroidEventHandler {
     app: AndroidApp,
     egui_context: EguiContext,
     raw_input: RawInput,
     pointer_captured: bool,
+    keyboard_shown: bool,
+    render_target_size: (u32, u32),
 }
 
 impl AndroidEventHandler {
@@ -47,8 +63,15 @@ impl AndroidEventHandler {
             egui_context: EguiContext::default(),
             raw_input: RawInput::default(),
             pointer_captured: true,
+            keyboard_shown: false,
+            render_target_size: target.size(),
         };
-        handler.update_config(app, target);
+        app.set_text_input_state(TextInputState {
+            text: String::from("  "),
+            selection: TextSpan { start: 1, end: 1 },
+            compose_region: None,
+        });
+        handler.update_config(target);
         handler
     }
 
@@ -56,8 +79,64 @@ impl AndroidEventHandler {
         self.raw_input.max_texture_side = Some(max_texture_side);
     }
 
-    pub fn update_config(&mut self, app: &AndroidApp, target: &AndroidRenderTarget) {
-        let density = app_density(app);
+    fn get_window_insets(&self) -> Insets {
+        let java_vm = self.app.java_vm();
+        let activity = self.app.activity_object();
+        let mut jni_env = java_vm.get_env().unwrap();
+
+        let insets = jni_env
+            .get_field(activity, "imeInsets", "Landroidx/core/graphics/Insets;")
+            .expect("Unable to get insets");
+        let inset = insets.l().expect("Bad insets object");
+        if inset.is_null() {
+            return Insets::default();
+        }
+
+        let top = jni_env
+            .get_field(&inset, "top", "I")
+            .expect("Failed to get top inset")
+            .i()
+            .expect("Bad top inset");
+        let bottom = jni_env
+            .get_field(&inset, "bottom", "I")
+            .expect("Failed to get bottom inset")
+            .i()
+            .expect("Bad bottom inset");
+        let left = jni_env
+            .get_field(&inset, "left", "I")
+            .expect("Failed to get left inset")
+            .i()
+            .expect("Bad left inset");
+        let right = jni_env
+            .get_field(&inset, "right", "I")
+            .expect("Failed to get right inset")
+            .i()
+            .expect("Bad right inset");
+        Insets {
+            top: top.max(0) as u32,
+            bottom: bottom.max(0) as u32,
+            left: left.max(0) as u32,
+            right: right.max(0) as u32,
+        }
+    }
+
+    fn update_screen_rect(&mut self) {
+        let density = app_density(&self.app);
+        let inset = self.get_window_insets();
+        self.raw_input.screen_rect = Some(Rect::from_min_size(
+            Pos2 {
+                x: inset.top as f32,
+                y: inset.left as f32,
+            },
+            Vec2 {
+                x: (self.render_target_size.0 as f32 - inset.right as f32).max(0.0),
+                y: (self.render_target_size.1 as f32 - inset.bottom as f32).max(0.0),
+            } / density,
+        ));
+    }
+
+    pub fn update_config(&mut self, target: &AndroidRenderTarget) {
+        let density = app_density(&self.app);
         if let Some(viewport) = self
             .raw_input
             .viewports
@@ -66,16 +145,10 @@ impl AndroidEventHandler {
             viewport.native_pixels_per_point = Some(density);
         }
 
-        let size = target.size();
-        self.raw_input.screen_rect = Some(Rect::from_min_size(
-            Default::default(),
-            Vec2 {
-                x: size.0 as f32,
-                y: size.1 as f32,
-            } / density,
-        ));
+        self.render_target_size = target.size();
+        self.update_screen_rect();
 
-        self.raw_input.system_theme = match app.config().ui_mode_night() {
+        self.raw_input.system_theme = match self.app.config().ui_mode_night() {
             UiModeNight::No => Some(Theme::Light),
             UiModeNight::Yes => Some(Theme::Dark),
             _ => None,
@@ -113,7 +186,100 @@ impl AndroidEventHandler {
         self.update_pointer_captured(false);
     }
 
-    pub fn on_key_event(&mut self, _key_event: &KeyEvent) {}
+    pub fn on_inset_changed(&mut self) {
+        info!("on_inset_changed()");
+        self.update_screen_rect();
+    }
+
+    #[must_use]
+    pub fn on_key_event(&mut self, key_event: &KeyEvent) -> InputStatus {
+        let keycode = key_event.key_code();
+
+        let state = match key_event.action() {
+            KeyAction::Down => true,
+            KeyAction::Up => false,
+            _ => return InputStatus::Unhandled,
+        };
+
+        if state {
+            if let Some(text) = keycode_to_text(keycode) {
+                self.raw_input.events.push(Event::Text(String::from(text)));
+            }
+        }
+
+        let Some(key) = keycode_to_key(keycode) else {
+            return InputStatus::Unhandled;
+        };
+
+        self.raw_input.events.push(Event::Key {
+            key,
+            physical_key: None,
+            pressed: state,
+            repeat: false,
+            modifiers: Modifiers::default(),
+        });
+
+        InputStatus::Handled
+    }
+
+    pub fn on_text_event(&mut self, text_event: &TextInputState) -> InputStatus {
+        // HACK: Android game input model don't work very well with egui's text
+        // input model, so there is a huge hack around it.
+        if !text_event.text.is_empty() {
+            fn fake_key_press(events: &mut Vec<Event>, key: Key) {
+                events.push(Event::Key {
+                    key,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers::default(),
+                });
+                events.push(Event::Key {
+                    key,
+                    physical_key: None,
+                    pressed: false,
+                    repeat: false,
+                    modifiers: Modifiers::default(),
+                });
+            }
+
+            // First, set text to '  ', and put cursor to the center. Second,
+            // when the ime want to move the cursor, send a left key event or
+            // right key event instead, and reset the cursor position.
+            // Third, if user delete spaces, send a backspace event, and reset
+            // the text. If user press enter, send a enter event, and do reset.
+            // In other cases we send a text event with the text between two
+            // spaces. This basically recreated text input events, but doesn't
+            // handle text composing very well.
+            let text = text_event.text.as_str();
+            match text.len().cmp(&2) {
+                Ordering::Less => {
+                    fake_key_press(&mut self.raw_input.events, Key::Backspace);
+                }
+                Ordering::Greater => {
+                    let input_text = &text[1..text.len() - 1];
+                    self.raw_input
+                        .events
+                        .push(Event::Text(String::from(input_text)));
+                }
+                Ordering::Equal => match text_event.selection.start.cmp(&1) {
+                    Ordering::Less => {
+                        fake_key_press(&mut self.raw_input.events, Key::ArrowLeft);
+                    }
+                    Ordering::Greater => {
+                        fake_key_press(&mut self.raw_input.events, Key::ArrowRight);
+                    }
+                    Ordering::Equal => {}
+                },
+            }
+        }
+        self.app.set_text_input_state(TextInputState {
+            text: String::from("  "),
+            selection: TextSpan { start: 1, end: 1 },
+            compose_region: None,
+        });
+        InputStatus::Handled
+    }
 
     pub fn on_motion_event(&mut self, motion_event: &MotionEvent) {
         let density = app_density(&self.app);
@@ -224,6 +390,8 @@ impl GuiEventHandler for AndroidEventHandler {
     }
 
     fn handle_platform_output(&mut self, platform_output: PlatformOutput) {
+        self.update_screen_rect();
+
         let java_vm = self.app.java_vm();
         let activity = self.app.activity_object();
         let mut jni_env = java_vm.get_env().unwrap();
@@ -240,6 +408,16 @@ impl GuiEventHandler for AndroidEventHandler {
                     &[JValue::Object(&url)],
                 )
                 .expect("Call openUrl failed");
+        }
+
+        if platform_output.ime.is_some() {
+            if !self.keyboard_shown {
+                self.keyboard_shown = true;
+                self.app.show_soft_input(true);
+            }
+        } else if self.keyboard_shown {
+            self.keyboard_shown = false;
+            self.app.hide_soft_input(true);
         }
     }
 }

@@ -45,7 +45,7 @@ cargo {
     targetDirectory = "../target"
     libname = "renderer_android"
     targets = listOf("arm64")
-    profile = "release"
+    profile = "debug"
     features {
         defaultAnd(arrayOf("log-panics"))
     }
